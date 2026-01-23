@@ -3,116 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Kassenbon OCR App – Mobile + Kategorien & Filter</title>
-<script>
-/* ---------------------------------------------------------
-   Bildverbesserung (OpenCV.js) – entspricht deiner Python-Version
---------------------------------------------------------- */
-function enhanceImage(srcMat) {
-    let gray = new cv.Mat();
-    cv.cvtColor(srcMat, gray, cv.COLOR_RGBA2GRAY);
-
-    // Gaussian Blur
-    let blur = new cv.Mat();
-    cv.GaussianBlur(gray, blur, new cv.Size(5,5), 0);
-
-    // CLAHE
-    let clahe = new cv.CLAHE(3.0, new cv.Size(8,8));
-    let contrast = new cv.Mat();
-    clahe.apply(blur, contrast);
-
-    // Schärfen
-    let kernel = cv.matFromArray(3, 3, cv.CV_32F,
-        [0,-1,0, -1,5,-1, 0,-1,0]);
-    let sharp = new cv.Mat();
-    cv.filter2D(contrast, sharp, -1, kernel);
-
-    // Rauschen reduzieren
-    let denoised = new cv.Mat();
-    cv.fastNlMeansDenoising(sharp, denoised, 10);
-
-    gray.delete(); blur.delete(); contrast.delete(); sharp.delete(); kernel.delete();
-
-    return denoised;
-}
-
-/* ---------------------------------------------------------
-   OCR Pipeline
---------------------------------------------------------- */
-async function runOCR(file) {
-    document.getElementById("status").textContent = "Bild wird geladen…";
-
-    let img = new Image();
-    img.src = URL.createObjectURL(file);
-
-    await img.decode();
-
-    // Canvas → OpenCV Mat
-    let canvas = document.createElement("canvas");
-    canvas.width = img.width;
-    canvas.height = img.height;
-    let ctx = canvas.getContext("2d");
-    ctx.drawImage(img, 0, 0);
-
-    let src = cv.imread(canvas);
-
-    document.getElementById("status").textContent = "Bild wird verbessert…";
-
-    let enhanced = enhanceImage(src);
-
-    // Zurück ins Canvas
-    cv.imshow(canvas, enhanced);
-
-    document.getElementById("status").textContent = "OCR läuft…";
-
-    let { data: { text } } = await Tesseract.recognize(
-        canvas.toDataURL(),
-        "deu",
-        { logger: m => console.log(m) }
-    );
-
-    src.delete();
-    enhanced.delete();
-
-    return text;
-}
-
-/* ---------------------------------------------------------
-   Puter AI Namenskorrigierung
---------------------------------------------------------- */
-async function correctName(name) {
-    const result = await puter.ai.chat({
-        model: "gpt-4o-mini",
-        messages: [
-            { role: "system", content: "Korrigiere Produktnamen. Gib nur den korrigierten Namen zurück." },
-            { role: "user", content: name }
-        ]
-    });
-
-    return result.message.content;
-}
-
-/* ---------------------------------------------------------
-   UI Events
---------------------------------------------------------- */
-document.getElementById("customFileButton").onclick = () =>
-    document.getElementById("imageInput").click();
-
-document.getElementById("imageInput").onchange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    document.getElementById("status").textContent = "Verarbeite…";
-
-    let rawText = await runOCR(file);
-
-    document.getElementById("status").textContent = "Korrigiere Namen…";
-
-    let corrected = await correctName(rawText);
-
-    document.getElementById("output").textContent = corrected;
-    document.getElementById("status").textContent = "Fertig!";
-};
-</script>
+<script async src="https://docs.opencv.org/4.x/opencv.js"></script>
   <!-- OCR (Tesseract v5) -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
@@ -1170,6 +1061,116 @@ document.getElementById("imageInput").addEventListener("change", async (e) => {
 initSettingsUI();
 renderStats();
 renderReceiptList();
+</script>
+<script>
+/* ---------------------------------------------------------
+   Bildverbesserung (OpenCV.js) – entspricht deiner Python-Version
+--------------------------------------------------------- */
+function enhanceImage(srcMat) {
+    let gray = new cv.Mat();
+    cv.cvtColor(srcMat, gray, cv.COLOR_RGBA2GRAY);
+
+    // Gaussian Blur
+    let blur = new cv.Mat();
+    cv.GaussianBlur(gray, blur, new cv.Size(5,5), 0);
+
+    // CLAHE
+    let clahe = new cv.CLAHE(3.0, new cv.Size(8,8));
+    let contrast = new cv.Mat();
+    clahe.apply(blur, contrast);
+
+    // Schärfen
+    let kernel = cv.matFromArray(3, 3, cv.CV_32F,
+        [0,-1,0, -1,5,-1, 0,-1,0]);
+    let sharp = new cv.Mat();
+    cv.filter2D(contrast, sharp, -1, kernel);
+
+    // Rauschen reduzieren
+    let denoised = new cv.Mat();
+    cv.fastNlMeansDenoising(sharp, denoised, 10);
+
+    gray.delete(); blur.delete(); contrast.delete(); sharp.delete(); kernel.delete();
+
+    return denoised;
+}
+
+/* ---------------------------------------------------------
+   OCR Pipeline
+--------------------------------------------------------- */
+async function runOCR(file) {
+    document.getElementById("status").textContent = "Bild wird geladen…";
+
+    let img = new Image();
+    img.src = URL.createObjectURL(file);
+
+    await img.decode();
+
+    // Canvas → OpenCV Mat
+    let canvas = document.createElement("canvas");
+    canvas.width = img.width;
+    canvas.height = img.height;
+    let ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+
+    let src = cv.imread(canvas);
+
+    document.getElementById("status").textContent = "Bild wird verbessert…";
+
+    let enhanced = enhanceImage(src);
+
+    // Zurück ins Canvas
+    cv.imshow(canvas, enhanced);
+
+    document.getElementById("status").textContent = "OCR läuft…";
+
+    let { data: { text } } = await Tesseract.recognize(
+        canvas.toDataURL(),
+        "deu",
+        { logger: m => console.log(m) }
+    );
+
+    src.delete();
+    enhanced.delete();
+
+    return text;
+}
+
+/* ---------------------------------------------------------
+   Puter AI Namenskorrigierung
+--------------------------------------------------------- */
+async function correctName(name) {
+    const result = await puter.ai.chat({
+        model: "gpt-4o-mini",
+        messages: [
+            { role: "system", content: "Korrigiere Produktnamen. Gib nur den korrigierten Namen zurück." },
+            { role: "user", content: name }
+        ]
+    });
+
+    return result.message.content;
+}
+
+/* ---------------------------------------------------------
+   UI Events
+--------------------------------------------------------- */
+document.getElementById("customFileButton").onclick = () =>
+    document.getElementById("imageInput").click();
+
+document.getElementById("imageInput").onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    document.getElementById("status").textContent = "Verarbeite…";
+
+    let rawText = await runOCR(file);
+
+    document.getElementById("status").textContent = "Korrigiere Namen…";
+
+    let corrected = await correctName(rawText);
+
+    document.getElementById("output").textContent = corrected;
+    document.getElementById("status").textContent = "Fertig!";
+};
 </script>
 </body>
 </html>
