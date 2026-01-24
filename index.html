@@ -2,38 +2,77 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Kassenbon OCR App – Mobile + Kategorien & Filter</title>
-<script async src="https://docs.opencv.org/4.x/opencv.js"></script>
-  <!-- OCR (Tesseract v5) -->
+  <title>Kassenbon OCR App – Multi-Upload</title>
+
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
-  <!-- Puter AI -->
   <script src="https://js.puter.com/v2/"></script>
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <style>
+    /* ---------------------------------------------------------
+       THEMING VARIABLES
+    --------------------------------------------------------- */
     :root {
+      /* Default (Blau) */
       --primary: #2563eb;
       --primary-light: #dbeafe;
       --bg: #f3f4f6;
       --card: #ffffff;
       --text: #111827;
-      --muted: #6b7280;
+      --text-muted: #6b7280;
+      --border: #e5e7eb;
       --danger: #dc2626;
       --radius: 12px;
+      
+      /* Kategorie-Farben */
+      --cat-obst: #166534;
+      --cat-fleisch: #b91c1c;
+      --cat-backwaren: #c2410c;
+      --cat-getraenke: #1d4ed8;
+      --cat-milch: #0f766e;
+      --cat-suess: #be185d;
+      --cat-haushalt: #111827;
+      --cat-drogerie: #6d28d9;
+      --cat-tabak: #78350f;
+      --cat-sonstiges: #374151;
+    }
 
-      /* Kategorie-Farben (High Contrast) */
-      --cat-obst: #166534;          /* Dunkelgrün */
-      --cat-fleisch: #b91c1c;       /* Dunkelrot */
-      --cat-backwaren: #c2410c;     /* Dunkelorange */
-      --cat-getraenke: #1d4ed8;     /* Dunkelblau */
-      --cat-milch: #0f766e;         /* Türkis */
-      --cat-suess: #be185d;         /* Magenta */
-      --cat-haushalt: #111827;      /* Schwarz */
-      --cat-drogerie: #6d28d9;      /* Violett */
-      --cat-tabak: #78350f;         /* Dunkelbraun */
-      --cat-sonstiges: #374151;     /* Dunkelgrau */
+    /* THEME: Dark Mode */
+    [data-theme="dark"] {
+      --primary: #60a5fa;
+      --primary-light: #1e3a8a;
+      --bg: #111827;
+      --card: #1f2937;
+      --text: #f9fafb;
+      --text-muted: #9ca3af;
+      --border: #374151;
+      --danger: #ef4444;
+      --cat-haushalt: #e5e7eb; 
+      --cat-sonstiges: #d1d5db;
+    }
+
+    /* THEME: Natur (Grün) */
+    [data-theme="nature"] {
+      --primary: #059669;
+      --primary-light: #d1fae5;
+      --bg: #ecfdf5;
+      --card: #ffffff;
+      --text: #064e3b;
+      --text-muted: #65a30d;
+      --border: #a7f3d0;
+    }
+
+    /* THEME: Beere (Violett/Pink) */
+    [data-theme="berry"] {
+      --primary: #db2777;
+      --primary-light: #fce7f3;
+      --bg: #fdf2f8;
+      --card: #ffffff;
+      --text: #831843;
+      --text-muted: #be185d;
+      --border: #fbcfe8;
     }
 
     * { box-sizing: border-box; }
@@ -43,6 +82,7 @@
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: var(--bg);
       color: var(--text);
+      transition: background 0.3s, color 0.3s;
     }
 
     .app {
@@ -60,6 +100,7 @@
       position: sticky;
       top: 0;
       z-index: 10;
+      transition: background 0.3s;
     }
 
     header h1 {
@@ -68,7 +109,7 @@
     }
 
     header small {
-      color: var(--muted);
+      color: var(--text-muted);
       font-size: 0.8rem;
     }
 
@@ -78,6 +119,7 @@
       background: var(--bg);
       border-radius: 999px;
       padding: 4px;
+      border: 1px solid var(--border);
     }
 
     .tab {
@@ -87,14 +129,16 @@
       font-size: 0.85rem;
       border-radius: 999px;
       cursor: pointer;
-      color: var(--muted);
+      color: var(--text-muted);
       user-select: none;
+      transition: all 0.2s;
     }
 
     .tab.active {
       background: var(--primary);
       color: #fff;
       font-weight: 600;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
 
     main {
@@ -105,6 +149,12 @@
 
     .screen {
       display: none;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .screen.active {
@@ -114,9 +164,11 @@
     .card {
       background: var(--card);
       border-radius: var(--radius);
-      padding: 12px 14px;
+      padding: 16px;
       margin-bottom: 12px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      border: 1px solid var(--border);
+      transition: background 0.3s, border-color 0.3s;
     }
 
     .card h2 {
@@ -127,42 +179,93 @@
     .card p {
       margin: 4px 0;
       font-size: 0.85rem;
-      color: var(--muted);
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* ---------------------------------------------------------
+       CUSTOM FILE INPUT STYLING
+    --------------------------------------------------------- */
+    .file-upload-wrapper {
+      margin-top: 12px;
+      position: relative;
     }
 
     .file-input {
-      width: 100%;
-      padding: 10px;
-      border-radius: 999px;
-      border: 1px solid #e5e7eb;
-      background: #f9fafb;
-      font-size: 0.9rem;
+      position: absolute;
+      width: 0.1px;
+      height: 0.1px;
+      opacity: 0;
+      overflow: hidden;
+      z-index: -1;
     }
 
+    .file-upload-label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      border: 2px dashed var(--primary);
+      border-radius: var(--radius);
+      background: var(--bg);
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+      color: var(--primary);
+    }
+
+    .file-upload-label:hover {
+      background: var(--primary-light);
+    }
+
+    .file-upload-label span {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+    
+    .file-upload-icon {
+      font-size: 24px;
+    }
+
+    .file-upload-label.has-file {
+      border-style: solid;
+      background: var(--primary-light);
+      color: var(--primary);
+      border-color: var(--primary);
+    }
+
+    /* --------------------------------------------------------- */
+
     .status {
-      font-size: 0.8rem;
-      color: var(--muted);
-      margin-top: 6px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 10px;
+      font-style: italic;
     }
 
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 10px 14px;
-      border-radius: 999px;
+      width: 100%;
+      padding: 12px;
+      border-radius: var(--radius);
       border: none;
       background: var(--primary);
       color: #fff;
-      font-size: 0.9rem;
-      font-weight: 500;
+      font-size: 0.95rem;
+      font-weight: 600;
       cursor: pointer;
-      margin-top: 8px;
+      margin-top: 12px;
+      transition: transform 0.1s, opacity 0.2s;
     }
 
     .btn.secondary {
-      background: #e5e7eb;
-      color: #111827;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
     }
 
     .btn.danger {
@@ -183,18 +286,26 @@
     .stat {
       background: var(--primary-light);
       border-radius: var(--radius);
-      padding: 8px;
+      padding: 10px;
       font-size: 0.8rem;
+      color: var(--text);
     }
 
     .stat-label {
-      color: var(--muted);
+      color: var(--text);
+      opacity: 0.7;
       font-size: 0.75rem;
     }
 
     .stat-value {
-      font-weight: 600;
-      margin-top: 2px;
+      font-weight: 700;
+      margin-top: 4px;
+      font-size: 1rem;
+      color: var(--primary);
+    }
+    
+    [data-theme="dark"] .stat-value {
+      color: #fff;
     }
 
     table {
@@ -205,39 +316,66 @@
     }
 
     th, td {
-      border: 1px solid #e5e7eb;
-      padding: 6px;
+      border: 1px solid var(--border);
+      padding: 8px;
+      color: var(--text);
     }
 
     th {
-      background: #f9fafb;
+      background: var(--bg);
       text-align: left;
+      font-weight: 600;
+    }
+
+    /* Multi-Result Styling */
+    .result-block {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px dashed var(--border);
+    }
+    .result-block:last-child {
+      border-bottom: none;
+    }
+    .result-header {
+      font-weight: 600;
+      color: var(--primary);
+      margin-bottom: 6px;
+      font-size: 0.95rem;
     }
 
     details {
-      margin-top: 8px;
+      margin-top: 12px;
       font-size: 0.8rem;
+      color: var(--text-muted);
     }
 
     details summary {
       cursor: pointer;
       color: var(--primary);
+      padding: 4px 0;
     }
 
+    /* Settings Inputs */
     .settings-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin: 8px 0;
+      margin: 12px 0;
       font-size: 0.9rem;
     }
 
-    .settings-row input {
-      width: 80px;
-      padding: 6px 8px;
-      border-radius: 999px;
-      border: 1px solid #e5e7eb;
-      text-align: center;
+    select, input[type="number"], input[type="date"] {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.9rem;
+      outline: none;
+    }
+
+    select:focus, input:focus {
+      border-color: var(--primary);
     }
 
     .receipt-list {
@@ -247,87 +385,71 @@
     }
 
     .receipt-item {
-      padding: 6px 0;
-      border-bottom: 1px solid #e5e7eb;
-      font-size: 0.8rem;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
       display: flex;
       justify-content: space-between;
-    }
-
-    .receipt-item span {
-      display: block;
+      color: var(--text);
     }
 
     .receipt-item-date {
-      color: var(--muted);
+      color: var(--text-muted);
       font-size: 0.75rem;
+      margin-top: 2px;
     }
 
     footer {
       position: sticky;
       bottom: 0;
       background: var(--card);
-      padding: 8px 12px;
+      padding: 12px;
       font-size: 0.75rem;
-      color: var(--muted);
+      color: var(--text-muted);
       text-align: center;
-      border-top: 1px solid #e5e7eb;
+      border-top: 1px solid var(--border);
+      z-index: 5;
     }
 
     .filter-row {
       display: flex;
       flex-direction: column;
       gap: 6px;
-      margin-bottom: 8px;
+      margin-bottom: 12px;
       font-size: 0.8rem;
     }
 
     .filter-select {
       width: 100%;
-      padding: 6px 10px;
-      border-radius: 999px;
-      border: 1px solid #e5e7eb;
-      background: #f9fafb;
-      font-size: 0.85rem;
-    }
-
-    .filter-dates {
-      display: flex;
-      gap: 6px;
-    }
-
-    .filter-dates input {
-      flex: 1;
-      padding: 6px 8px;
-      border-radius: 999px;
-      border: 1px solid #e5e7eb;
-      font-size: 0.8rem;
     }
 
     .category-chips {
       display: flex;
       gap: 6px;
       overflow-x: auto;
-      padding-bottom: 4px;
+      padding-bottom: 8px;
       margin-top: 4px;
+      scrollbar-width: thin; 
     }
 
     .chip {
       flex-shrink: 0;
-      padding: 6px 10px;
+      padding: 6px 12px;
       border-radius: 999px;
-      border: 1px solid #e5e7eb;
+      border: 1px solid var(--border);
       font-size: 0.75rem;
+      font-weight: 500;
       cursor: pointer;
       white-space: nowrap;
-      background: #fff;
+      background: var(--card);
       color: var(--text);
-      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      transition: all 0.2s;
     }
 
     .chip.active {
-      color: #fff;
+      color: #fff !important;
       border-color: transparent;
+      transform: scale(1.05);
     }
 
     .chip.cat-obst.active { background: var(--cat-obst); }
@@ -347,15 +469,13 @@
     .chip.cat-getraenke:not(.active) { border-color: var(--cat-getraenke); color: var(--cat-getraenke); }
     .chip.cat-milch:not(.active) { border-color: var(--cat-milch); color: var(--cat-milch); }
     .chip.cat-suess:not(.active) { border-color: var(--cat-suess); color: var(--cat-suess); }
-    .chip.cat-haushalt:not(.active) { border-color: var(--cat-haushalt); color: var(--cat-haushalt); }
+    .chip.cat-haushalt:not(.active) { border-color: var(--text-muted); color: var(--text); }
     .chip.cat-drogerie:not(.active) { border-color: var(--cat-drogerie); color: var(--cat-drogerie); }
     .chip.cat-tabak:not(.active) { border-color: var(--cat-tabak); color: var(--cat-tabak); }
-    .chip.cat-sonstiges:not(.active) { border-color: var(--cat-sonstiges); color: var(--cat-sonstiges); }
+    .chip.cat-sonstiges:not(.active) { border-color: var(--text-muted); color: var(--text); }
 
     .chip-all.active {
       background: var(--primary);
-      color: #fff;
-      border-color: transparent;
     }
     .chip-all:not(.active) {
       border-color: var(--primary);
@@ -367,7 +487,7 @@
 <div class="app">
   <header>
     <h1>Kassenbon OCR</h1>
-    <small>Scannen · Speichern · Verbrauch auswerten</small>
+    <small>Scannen · Speichern · Auswerten</small>
 
     <div class="tabs">
       <div class="tab active" data-screen="scan">Scan</div>
@@ -377,23 +497,30 @@
   </header>
 
   <main>
-    <!-- SCAN SCREEN -->
     <section id="screen-scan" class="screen active">
       <div class="card">
-        <h2>Bon scannen</h2>
-        <p>Foto eines Kassenbons aufnehmen oder aus der Galerie wählen. Der Text wird erkannt und automatisch ausgewertet.</p>
-        <input type="file" id="imageInput" accept="image/*" class="file-input">
+        <h2>Bons scannen</h2>
+        <p>Foto aufnehmen oder mehrere Bilder aus der Galerie wählen. Die KI verarbeitet sie nacheinander.</p>
+        
+        <div class="file-upload-wrapper">
+          <input type="file" id="imageInput" accept="image/*" multiple class="file-input">
+          <label for="imageInput" class="file-upload-label" id="fileLabel">
+            <div class="file-upload-icon">📸</div>
+            <span id="fileLabelText">Foto aufnehmen oder Dateien wählen</span>
+          </label>
+        </div>
+
         <div id="status" class="status"></div>
       </div>
 
       <div class="card">
-        <h2>Letzter Scan</h2>
-        <div id="output">Noch kein Bon gescannt.</div>
-        <div id="tableContainer"></div>
+        <h2>Ergebnis</h2>
+        <div id="outputContainer">
+           <div style="color: var(--text-muted); font-size: 0.9rem;">Noch kein Bon gescannt.</div>
+        </div>
       </div>
     </section>
 
-    <!-- STATS SCREEN -->
     <section id="screen-stats" class="screen">
       <div class="card">
         <h2>Filter</h2>
@@ -411,9 +538,9 @@
           </select>
         </div>
         <div class="filter-row" id="customDateRow" style="display:none;">
-          <div class="filter-dates">
-            <input type="date" id="customFrom">
-            <input type="date" id="customTo">
+          <div class="filter-dates" style="display:flex; gap:8px;">
+            <input type="date" id="customFrom" style="flex:1">
+            <input type="date" id="customTo" style="flex:1">
           </div>
         </div>
 
@@ -437,27 +564,33 @@
 
       <div class="card">
         <h2>Verbrauch – Übersicht</h2>
-        <p>Basierend auf allen gefilterten Bons.</p>
         <div class="stats-grid" id="statsGrid"></div>
       </div>
 
       <div class="card">
-        <h2>Gespeicherte Bons (gefiltert)</h2>
-        <p>Nach Datum sortiert (neueste zuerst).</p>
+        <h2>Historie</h2>
         <div class="receipt-list" id="receiptList"></div>
-        <button class="btn secondary danger" id="clearDataBtn">Alle Daten löschen</button>
+        <button class="btn danger" id="clearDataBtn" style="margin-top:20px;">Alle Daten löschen</button>
       </div>
     </section>
 
-    <!-- SETTINGS SCREEN -->
     <section id="screen-settings" class="screen">
       <div class="card">
-        <h2>Persönliche Einstellungen</h2>
-        <p>Nutze die Gruppengröße, um den Verbrauch pro Person zu berechnen (z.B. 4‑köpfige Familie).</p>
+        <h2>App Einstellungen</h2>
+        
+        <div class="settings-row">
+          <span>Farbthema</span>
+          <select id="themeSelect">
+            <option value="default">Blau (Standard)</option>
+            <option value="dark">Dark Mode 🌙</option>
+            <option value="nature">Natur (Grün)</option>
+            <option value="berry">Beere (Pink)</option>
+          </select>
+        </div>
 
         <div class="settings-row">
-          <span>Gruppengröße (Personen)</span>
-          <input type="number" id="groupSizeInput" min="1" value="1">
+          <span>Haushalt (Personen)</span>
+          <input type="number" id="groupSizeInput" min="1" value="1" style="width:80px; text-align:center;">
         </div>
 
         <button class="btn" id="saveSettingsBtn">Einstellungen speichern</button>
@@ -465,14 +598,14 @@
       </div>
 
       <div class="card">
-        <h2>Hinweis</h2>
-        <p>Alle Daten werden nur lokal in deinem Browser gespeichert (localStorage) und nicht hochgeladen.</p>
+        <h2>Datenschutz</h2>
+        <p>Alle Daten bleiben lokal auf deinem Gerät (localStorage). Es erfolgt kein Upload in eine Cloud-Datenbank.</p>
       </div>
     </section>
   </main>
 
   <footer>
-    Daten werden lokal gespeichert · Ideal für Smartphone & Tablet
+    Lokal gespeichert · Powered by Tesseract & Puter AI
   </footer>
 </div>
 
@@ -505,14 +638,10 @@ tabs.forEach(tab => {
 });
 
 /* ---------------------------------------------------------
-   Local Storage – Datenstruktur
-   receipts: [
-     { id, dateISO, dateDisplay, total, items: [{name, price, category}] }
-   ]
-   settings: { groupSize }
+   Local Storage & Theme Logic
 --------------------------------------------------------- */
 const STORAGE_KEY_RECEIPTS = 'kassenbon_receipts_v2';
-const STORAGE_KEY_SETTINGS = 'kassenbon_settings_v1';
+const STORAGE_KEY_SETTINGS = 'kassenbon_settings_v2';
 
 function loadReceipts() {
   try {
@@ -532,13 +661,15 @@ function saveReceipts(receipts) {
 function loadSettings() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_SETTINGS);
-    if (!raw) return { groupSize: 1 };
+    const defaults = { groupSize: 1, theme: 'default' };
+    if (!raw) return defaults;
     const obj = JSON.parse(raw);
     return {
-      groupSize: Number(obj.groupSize) > 0 ? Number(obj.groupSize) : 1
+      groupSize: Number(obj.groupSize) > 0 ? Number(obj.groupSize) : 1,
+      theme: obj.theme || 'default'
     };
   } catch {
-    return { groupSize: 1 };
+    return { groupSize: 1, theme: 'default' };
   }
 }
 
@@ -546,8 +677,126 @@ function saveSettings(settings) {
   localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
 }
 
+function applyTheme(themeName) {
+  if(themeName === 'default') {
+    document.body.removeAttribute('data-theme');
+  } else {
+    document.body.setAttribute('data-theme', themeName);
+  }
+}
+
+const initialSettings = loadSettings();
+applyTheme(initialSettings.theme);
+
 /* ---------------------------------------------------------
-   Tabelle rendern (ohne map)
+   UI Logic für Multi-File Input
+--------------------------------------------------------- */
+const fileInput = document.getElementById('imageInput');
+const fileLabel = document.getElementById('fileLabel');
+const fileLabelText = document.getElementById('fileLabelText');
+
+fileInput.addEventListener('change', async (e) => {
+  const files = e.target.files;
+  if (!files || files.length === 0) return;
+
+  // UI Update: Label
+  if (files.length === 1) {
+    fileLabelText.innerHTML = `<strong>${files[0].name}</strong><br>bereit`;
+  } else {
+    fileLabelText.innerHTML = `<strong>${files.length} Dateien</strong><br>bereit`;
+  }
+  fileLabel.classList.add('has-file');
+
+  // Start Processing
+  const status = document.getElementById("status");
+  const outputContainer = document.getElementById("outputContainer");
+  
+  // Clear old results
+  outputContainer.innerHTML = "";
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    status.textContent = `Verarbeite Bild ${i+1} von ${files.length} (${file.name})...`;
+    
+    try {
+      await processSingleFile(file, outputContainer);
+    } catch (err) {
+      console.error(err);
+      outputContainer.innerHTML += `<div class="result-block" style="color:var(--danger)">Fehler bei Datei ${file.name}</div>`;
+    }
+  }
+
+  status.textContent = "Alle Dateien verarbeitet!";
+  renderStats();
+  renderReceiptList();
+
+  // Reset Input Label (delayed)
+  setTimeout(() => {
+     if(status.textContent === "Alle Dateien verarbeitet!") {
+        fileLabelText.innerHTML = "Weiteren Bon scannen";
+        fileLabel.classList.remove('has-file');
+     }
+  }, 3000);
+});
+
+/* ---------------------------------------------------------
+   Single File Processing Logic (Refactored)
+--------------------------------------------------------- */
+async function processSingleFile(file, container) {
+  // 1. OCR
+  const worker = await Tesseract.createWorker("deu");
+  const { data } = await worker.recognize(file);
+  await worker.terminate();
+
+  // 2. AI
+  const result = await extractWithPuter(data.text);
+  if (!result) throw new Error("KI Extraktion fehlgeschlagen");
+
+  // 3. Render HTML
+  const date = result.date || "";
+  const total = result.total || "0,00";
+  const items = Array.isArray(result.items) ? result.items : [];
+
+  const div = document.createElement("div");
+  div.className = "result-block";
+  div.innerHTML = `
+    <div class="result-header">
+       ${file.name} &nbsp;•&nbsp; ${date || "?"} &nbsp;•&nbsp; ${total} €
+    </div>
+    ${renderTable(items)}
+  `;
+  container.appendChild(div);
+
+  // 4. Save
+  const receipts = loadReceipts();
+  const now = new Date();
+  let dateISO = now.toISOString();
+  let dateDisplay = date;
+
+  if (date) {
+    const m = date.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+    if (m) {
+      const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+      if (!isNaN(d.getTime())) {
+        dateISO = d.toISOString();
+        dateDisplay = date;
+      }
+    }
+  }
+
+  receipts.push({
+    id: Date.now() + Math.random(), // Unique ID
+    dateISO,
+    dateDisplay,
+    total: String(total).replace(",", "."),
+    items
+  });
+
+  saveReceipts(receipts);
+}
+
+/* ---------------------------------------------------------
+   Tabelle rendern
 --------------------------------------------------------- */
 function renderTable(items) {
   if (!items || !items.length) return "<p>Keine Artikel erkannt.</p>";
@@ -563,10 +812,9 @@ function renderTable(items) {
 }
 
 /* ---------------------------------------------------------
-   Puter AI – JSON-Extraktion (robust, mit Kategorien)
+   Puter AI – JSON-Extraktion
 --------------------------------------------------------- */
 async function extractWithPuter(ocrText) {
-  // Alle geschweiften Klammern entfernen, die Puter verwirren
   ocrText = ocrText.replace(/[{}]/g, "");
 
   const prompt = `
@@ -579,7 +827,6 @@ Du sollst:
 - OCR-Fehler bereinigen
 - Artikel + Preise extrahieren
 - JEDEM Artikel GENAU EINE Kategorie zuordnen
-- Artikel nach Preis (aufsteigend) sortieren
 - IMMER gültiges JSON zurückgeben
 
 Erlaubte Kategorien (EXAKT so schreiben):
@@ -594,10 +841,6 @@ Erlaubte Kategorien (EXAKT so schreiben):
 - "Tabak"
 - "Sonstiges"
 
-Wenn du keine Artikel findest: "items": []
-Wenn du kein Datum findest: "date": ""
-Wenn du keinen Gesamtbetrag findest: "total": ""
-
 Gib das Ergebnis GENAU in diesem Format zurück:
 
 {
@@ -610,9 +853,6 @@ Gib das Ergebnis GENAU in diesem Format zurück:
 `;
 
   const response = await puter.ai.chat(prompt);
-
-  console.log("Puter‑Rohantwort:", response);
-
   let text = "";
 
   if (typeof response === "string") {
@@ -623,15 +863,10 @@ Gib das Ergebnis GENAU in diesem Format zurück:
     text = JSON.stringify(response);
   }
 
-  console.log("Puter‑Text (String):", text);
-
   try {
     const jsonStart = text.indexOf("{");
     const jsonEnd = text.lastIndexOf("}");
     const jsonString = text.substring(jsonStart, jsonEnd + 1);
-
-    console.log("Puter‑JSON‑String:", jsonString);
-
     const parsed = JSON.parse(jsonString);
 
     let items = Array.isArray(parsed.items) ? parsed.items : [];
@@ -648,13 +883,8 @@ Gib das Ergebnis GENAU in diesem Format zurück:
     };
 
   } catch (e) {
-    console.error("JSON Parsing Fehler:", e, text);
-
-    return {
-      date: "",
-      total: "",
-      items: []
-    };
+    console.error("JSON Fehler:", e);
+    return { date: "", total: "", items: [] };
   }
 }
 
@@ -665,7 +895,6 @@ function getDateRangeForFilter(filterValue, customFrom, customTo) {
   const now = new Date();
   let start = null;
   let end = null;
-
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const oneDayMs = 1000 * 60 * 60 * 24;
 
@@ -718,17 +947,13 @@ function getDateRangeForFilter(filterValue, customFrom, customTo) {
       }
       break;
     }
-    default:
-      break;
   }
-
   return { start, end };
 }
 
 function filterReceiptsByDate(receipts, filterValue, customFrom, customTo) {
   const { start, end } = getDateRangeForFilter(filterValue, customFrom, customTo);
   if (!start || !end) return receipts;
-
   return receipts.filter(r => {
     const d = new Date(r.dateISO || r.dateDisplay || new Date());
     return d >= start && d <= end;
@@ -743,11 +968,7 @@ function filterReceiptsByCategory(receipts, category) {
       const v = Number(String(it.price).replace(",", "."));
       return sum + (isNaN(v) ? 0 : v);
     }, 0);
-    return {
-      ...r,
-      items,
-      total: total.toFixed(2)
-    };
+    return { ...r, items, total: total.toFixed(2) };
   }).filter(r => (r.items || []).length > 0);
 }
 
@@ -757,23 +978,12 @@ function filterReceiptsByCategory(receipts, category) {
 function computeStats(receipts, groupSize) {
   if (!receipts.length) {
     return {
-      totalAll: 0,
-      avgDay: 0,
-      avgWeek: 0,
-      avgMonth: 0,
-      avgYear: 0,
-      perPerson: {
-        avgDay: 0,
-        avgWeek: 0,
-        avgMonth: 0,
-        avgYear: 0
-      }
+      totalAll: 0, avgDay: 0, avgWeek: 0, avgMonth: 0, avgYear: 0,
+      perPerson: { avgDay: 0, avgWeek: 0, avgMonth: 0, avgYear: 0 }
     };
   }
-
   const now = new Date();
   const msPerDay = 1000 * 60 * 60 * 24;
-
   let totalAll = 0;
   let firstDate = null;
   let lastDate = null;
@@ -781,32 +991,23 @@ function computeStats(receipts, groupSize) {
   for (const r of receipts) {
     const total = Number(String(r.total).replace(",", "."));
     if (isNaN(total)) continue;
-
     const d = new Date(r.dateISO || r.dateDisplay || now.toISOString());
     if (!firstDate || d < firstDate) firstDate = d;
     if (!lastDate || d > lastDate) lastDate = d;
-
     totalAll += total;
   }
-
   if (!firstDate) firstDate = now;
   if (!lastDate) lastDate = now;
 
   const daysSpan = Math.max(1, Math.round((lastDate - firstDate) / msPerDay) + 1);
-
   const avgDay = totalAll / daysSpan;
   const avgWeek = avgDay * 7;
   const avgMonth = avgDay * 30;
   const avgYear = avgDay * 365;
-
   const perPersonFactor = groupSize > 0 ? groupSize : 1;
 
   return {
-    totalAll,
-    avgDay,
-    avgWeek,
-    avgMonth,
-    avgYear,
+    totalAll, avgDay, avgWeek, avgMonth, avgYear,
     perPerson: {
       avgDay: avgDay / perPersonFactor,
       avgWeek: avgWeek / perPersonFactor,
@@ -821,14 +1022,13 @@ function formatEuro(value) {
 }
 
 /* ---------------------------------------------------------
-   Stats & Liste rendern (mit Filtern)
+   Stats & Liste rendern
 --------------------------------------------------------- */
 const timeFilterSelect = document.getElementById('timeFilter');
 const customDateRow = document.getElementById('customDateRow');
 const customFromInput = document.getElementById('customFrom');
 const customToInput = document.getElementById('customTo');
 const categoryChips = document.getElementById('categoryChips');
-
 let currentCategoryFilter = 'ALL';
 
 timeFilterSelect.addEventListener('change', () => {
@@ -837,46 +1037,27 @@ timeFilterSelect.addEventListener('change', () => {
   renderStats();
   renderReceiptList();
 });
-
-customFromInput.addEventListener('change', () => {
-  if (timeFilterSelect.value === 'custom') {
-    renderStats();
-    renderReceiptList();
-  }
-});
-
-customToInput.addEventListener('change', () => {
-  if (timeFilterSelect.value === 'custom') {
-    renderStats();
-    renderReceiptList();
-  }
-});
+customFromInput.addEventListener('change', () => { if (timeFilterSelect.value === 'custom') { renderStats(); renderReceiptList(); } });
+customToInput.addEventListener('change', () => { if (timeFilterSelect.value === 'custom') { renderStats(); renderReceiptList(); } });
 
 categoryChips.addEventListener('click', (e) => {
   const chip = e.target.closest('.chip');
   if (!chip) return;
   const cat = chip.getAttribute('data-category');
   currentCategoryFilter = cat || 'ALL';
-
   categoryChips.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
   chip.classList.add('active');
-
   renderStats();
   renderReceiptList();
 });
 
 function getFilteredReceipts() {
-  const receipts = loadReceipts().slice().sort((a, b) => {
-    return (b.dateISO || "").localeCompare(a.dateISO || "");
-  });
-
+  const receipts = loadReceipts().slice().sort((a, b) => (b.dateISO || "").localeCompare(a.dateISO || ""));
   const timeFilter = timeFilterSelect.value;
   const customFrom = customFromInput.value || null;
   const customTo = customToInput.value || null;
-
   let filtered = filterReceiptsByDate(receipts, timeFilter, customFrom, customTo);
   filtered = filterReceiptsByCategory(filtered, currentCategoryFilter);
-
   return filtered;
 }
 
@@ -884,45 +1065,14 @@ function renderStats() {
   const receipts = getFilteredReceipts();
   const settings = loadSettings();
   const stats = computeStats(receipts, settings.groupSize);
-
   const grid = document.getElementById('statsGrid');
   grid.innerHTML = `
-    <div class="stat">
-      <div class="stat-label">Gesamt (gefiltert)</div>
-      <div class="stat-value">${formatEuro(stats.totalAll)}</div>
-    </div>
-    <div class="stat">
-      <div class="stat-label">Ø pro Tag</div>
-      <div class="stat-value">${formatEuro(stats.avgDay)}</div>
-    </div>
-    <div class="stat">
-      <div class="stat-label">Ø pro Woche</div>
-      <div class="stat-value">${formatEuro(stats.avgWeek)}</div>
-    </div>
-    <div class="stat">
-      <div class="stat-label">Ø pro Monat</div>
-      <div class="stat-value">${formatEuro(stats.avgMonth)}</div>
-    </div>
-    <div class="stat">
-      <div class="stat-label">Ø pro Jahr</div>
-      <div class="stat-value">${formatEuro(stats.avgYear)}</div>
-    </div>
-    <div class="stat">
-      <div class="stat-label">Ø pro Tag / Person</div>
-      <div class="stat-value">${formatEuro(stats.perPerson.avgDay)}</div>
-    </div>
-    <div class="stat">
-      <div class="stat-label">Ø pro Woche / Person</div>
-      <div class="stat-value">${formatEuro(stats.perPerson.avgWeek)}</div>
-    </div>
-    <div class="stat">
-      <div class="stat-label">Ø pro Monat / Person</div>
-      <div class="stat-value">${formatEuro(stats.perPerson.avgMonth)}</div>
-    </div>
-    <div class="stat">
-      <div class="stat-label">Ø pro Jahr / Person</div>
-      <div class="stat-value">${formatEuro(stats.perPerson.avgYear)}</div>
-    </div>
+    <div class="stat"><div class="stat-label">Gesamt</div><div class="stat-value">${formatEuro(stats.totalAll)}</div></div>
+    <div class="stat"><div class="stat-label">Ø pro Tag</div><div class="stat-value">${formatEuro(stats.avgDay)}</div></div>
+    <div class="stat"><div class="stat-label">Ø pro Woche</div><div class="stat-value">${formatEuro(stats.avgWeek)}</div></div>
+    <div class="stat"><div class="stat-label">Ø pro Monat</div><div class="stat-value">${formatEuro(stats.avgMonth)}</div></div>
+    <div class="stat"><div class="stat-label">Ø Tag / Person</div><div class="stat-value">${formatEuro(stats.perPerson.avgDay)}</div></div>
+    <div class="stat"><div class="stat-label">Ø Monat / Person</div><div class="stat-value">${formatEuro(stats.perPerson.avgMonth)}</div></div>
   `;
 }
 
@@ -930,19 +1080,18 @@ function renderReceiptList() {
   const receipts = getFilteredReceipts();
   const list = document.getElementById('receiptList');
   if (!receipts.length) {
-    list.innerHTML = "<p>Keine Bons im aktuellen Filter.</p>";
+    list.innerHTML = "<p style='color:var(--text-muted); text-align:center; padding:10px;'>Keine Bons gefunden.</p>";
     return;
   }
-
   let html = "";
   for (const r of receipts) {
     html += `
       <div class="receipt-item">
         <span>
           <strong>${formatEuro(Number(String(r.total).replace(",", ".")) || 0)}</strong>
-          <span class="receipt-item-date">${r.dateDisplay || r.dateISO}</span>
+          <div class="receipt-item-date">${r.dateDisplay || r.dateISO}</div>
         </span>
-        <span>${(r.items || []).length} Artikel</span>
+        <span style="align-self:center;">${(r.items || []).length} Artikel</span>
       </div>
     `;
   }
@@ -950,23 +1099,33 @@ function renderReceiptList() {
 }
 
 /* ---------------------------------------------------------
-   Einstellungen initialisieren
+   Einstellungen UI
 --------------------------------------------------------- */
 const groupSizeInput = document.getElementById('groupSizeInput');
+const themeSelect = document.getElementById('themeSelect');
 const saveSettingsBtn = document.getElementById('saveSettingsBtn');
 const settingsStatus = document.getElementById('settingsStatus');
 
 function initSettingsUI() {
   const settings = loadSettings();
   groupSizeInput.value = settings.groupSize;
+  themeSelect.value = settings.theme || 'default';
 }
 
 saveSettingsBtn.addEventListener('click', () => {
   const size = Number(groupSizeInput.value);
   const validSize = size > 0 ? Math.round(size) : 1;
+  const theme = themeSelect.value;
+  
   groupSizeInput.value = validSize;
-  saveSettings({ groupSize: validSize });
-  settingsStatus.textContent = "Einstellungen gespeichert.";
+  
+  saveSettings({ groupSize: validSize, theme: theme });
+  applyTheme(theme);
+  
+  renderStats(); 
+  
+  settingsStatus.textContent = "Gespeichert!";
+  settingsStatus.style.color = "var(--primary)";
   setTimeout(() => settingsStatus.textContent = "", 2000);
 });
 
@@ -974,83 +1133,8 @@ saveSettingsBtn.addEventListener('click', () => {
    Daten löschen
 --------------------------------------------------------- */
 document.getElementById('clearDataBtn').addEventListener('click', () => {
-  if (!confirm("Alle gespeicherten Bons löschen?")) return;
+  if (!confirm("Wirklich alle gespeicherten Bons unwiderruflich löschen?")) return;
   saveReceipts([]);
-  renderStats();
-  renderReceiptList();
-});
-
-/* ---------------------------------------------------------
-   Hauptlogik: OCR → Puter → Tabelle + Speichern
---------------------------------------------------------- */
-document.getElementById("imageInput").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const status = document.getElementById("status");
-  const output = document.getElementById("output");
-  const tableContainer = document.getElementById("tableContainer");
-
-  status.textContent = "OCR läuft...";
-
-  const worker = await Tesseract.createWorker("deu");
-  const { data } = await worker.recognize(file);
-  await worker.terminate();
-
-  const rawText = data.text;
-  console.log("Roh-OCR:", rawText);
-
-  status.textContent = "OCR abgeschlossen. Sende Text an Puter AI...";
-
-  const result = await extractWithPuter(rawText);
-
-  if (!result) {
-    status.textContent = "Fehler bei der KI-Extraktion.";
-    return;
-  }
-
-  status.textContent = "Extraktion abgeschlossen.";
-
-  const date = result.date || "";
-  const total = result.total || "0,00";
-  const items = Array.isArray(result.items) ? result.items : [];
-
-  output.innerHTML =
-    `<strong>📅 Datum:</strong> ${date || "Nicht erkannt"}<br>` +
-    `<strong>💶 Gesamtbetrag:</strong> ${total} €<br><br>` +
-    `<strong>🛒 Artikel:</strong><br>`;
-
-  tableContainer.innerHTML = renderTable(items);
-
-  output.innerHTML += `<details><summary>Roh-JSON anzeigen</summary><pre>${JSON.stringify(result, null, 2)}</pre></details>`;
-
-  // Bon speichern
-  const receipts = loadReceipts();
-  const now = new Date();
-  let dateISO = now.toISOString();
-  let dateDisplay = date;
-
-  if (date) {
-    const m = date.match(/(\d{2})\.(\d{2})\.(\d{4})/);
-    if (m) {
-      const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
-      if (!isNaN(d.getTime())) {
-        dateISO = d.toISOString();
-        dateDisplay = date;
-      }
-    }
-  }
-
-  receipts.push({
-    id: Date.now(),
-    dateISO,
-    dateDisplay,
-    total: String(total).replace(",", "."),
-    items
-  });
-
-  saveReceipts(receipts);
-
   renderStats();
   renderReceiptList();
 });
@@ -1061,116 +1145,6 @@ document.getElementById("imageInput").addEventListener("change", async (e) => {
 initSettingsUI();
 renderStats();
 renderReceiptList();
-</script>
-<script>
-/* ---------------------------------------------------------
-   Bildverbesserung (OpenCV.js) – entspricht deiner Python-Version
---------------------------------------------------------- */
-function enhanceImage(srcMat) {
-    let gray = new cv.Mat();
-    cv.cvtColor(srcMat, gray, cv.COLOR_RGBA2GRAY);
-
-    // Gaussian Blur
-    let blur = new cv.Mat();
-    cv.GaussianBlur(gray, blur, new cv.Size(5,5), 0);
-
-    // CLAHE
-    let clahe = new cv.CLAHE(3.0, new cv.Size(8,8));
-    let contrast = new cv.Mat();
-    clahe.apply(blur, contrast);
-
-    // Schärfen
-    let kernel = cv.matFromArray(3, 3, cv.CV_32F,
-        [0,-1,0, -1,5,-1, 0,-1,0]);
-    let sharp = new cv.Mat();
-    cv.filter2D(contrast, sharp, -1, kernel);
-
-    // Rauschen reduzieren
-    let denoised = new cv.Mat();
-    cv.fastNlMeansDenoising(sharp, denoised, 10);
-
-    gray.delete(); blur.delete(); contrast.delete(); sharp.delete(); kernel.delete();
-
-    return denoised;
-}
-
-/* ---------------------------------------------------------
-   OCR Pipeline
---------------------------------------------------------- */
-async function runOCR(file) {
-    document.getElementById("status").textContent = "Bild wird geladen…";
-
-    let img = new Image();
-    img.src = URL.createObjectURL(file);
-
-    await img.decode();
-
-    // Canvas → OpenCV Mat
-    let canvas = document.createElement("canvas");
-    canvas.width = img.width;
-    canvas.height = img.height;
-    let ctx = canvas.getContext("2d");
-    ctx.drawImage(img, 0, 0);
-
-    let src = cv.imread(canvas);
-
-    document.getElementById("status").textContent = "Bild wird verbessert…";
-
-    let enhanced = enhanceImage(src);
-
-    // Zurück ins Canvas
-    cv.imshow(canvas, enhanced);
-
-    document.getElementById("status").textContent = "OCR läuft…";
-
-    let { data: { text } } = await Tesseract.recognize(
-        canvas.toDataURL(),
-        "deu",
-        { logger: m => console.log(m) }
-    );
-
-    src.delete();
-    enhanced.delete();
-
-    return text;
-}
-
-/* ---------------------------------------------------------
-   Puter AI Namenskorrigierung
---------------------------------------------------------- */
-async function correctName(name) {
-    const result = await puter.ai.chat({
-        model: "gpt-4o-mini",
-        messages: [
-            { role: "system", content: "Korrigiere Produktnamen. Gib nur den korrigierten Namen zurück." },
-            { role: "user", content: name }
-        ]
-    });
-
-    return result.message.content;
-}
-
-/* ---------------------------------------------------------
-   UI Events
---------------------------------------------------------- */
-document.getElementById("customFileButton").onclick = () =>
-    document.getElementById("imageInput").click();
-
-document.getElementById("imageInput").onchange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    document.getElementById("status").textContent = "Verarbeite…";
-
-    let rawText = await runOCR(file);
-
-    document.getElementById("status").textContent = "Korrigiere Namen…";
-
-    let corrected = await correctName(rawText);
-
-    document.getElementById("output").textContent = corrected;
-    document.getElementById("status").textContent = "Fertig!";
-};
 </script>
 </body>
 </html>
