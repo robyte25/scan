@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Kassenbon OCR – Deluxe Themes</title>
+  <title>Kassenbon Pro – Hybrid Edition</title>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="https://js.puter.com/v2/"></script>
@@ -10,10 +10,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <style>
-    /* --- THEME DEFINITIONEN --- */
+    /* --- THEMES & ROOT --- */
     :root {
       --primary: #2563eb; --primary-light: #dbeafe; --bg: #f3f4f6; --card: #ffffff;
       --text: #111827; --text-muted: #6b7280; --border: #e5e7eb; --danger: #dc2626; --radius: 12px;
+      --app-width: 480px; /* Standard Smartphone Breite */
     }
     [data-theme="dark"] { --primary: #60a5fa; --primary-light: #1e3a8a; --bg: #111827; --card: #1f2937; --text: #f9fafb; --text-muted: #9ca3af; --border: #374151; }
     [data-theme="nature"] { --primary: #059669; --primary-light: #d1fae5; --bg: #f0fdf4; --card: #ffffff; --text: #064e3b; --border: #bcf0da; }
@@ -22,11 +23,15 @@
     [data-theme="sunset"] { --primary: #ea580c; --primary-light: #ffedd5; --bg: #fff7ed; --card: #ffffff; --text: #7c2d12; --border: #fed7aa; }
     [data-theme="gold"] { --primary: #854d0e; --primary-light: #fef9c3; --bg: #fefce8; --card: #ffffff; --text: #422006; --border: #fef08a; }
 
+    /* --- DESKTOP MODUS AKTIVIERUNG --- */
+    body.desktop-mode { --app-width: 1000px; }
+
     * { box-sizing: border-box; transition: all 0.2s ease; }
     body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); }
-    .app { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
     
-    header { padding: 16px; background: var(--card); box-shadow: 0 1px 4px rgba(0,0,0,0.06); position: sticky; top: 0; z-index: 10; }
+    .app { max-width: var(--app-width); margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
+    
+    header { padding: 16px; background: var(--card); box-shadow: 0 1px 4px rgba(0,0,0,0.06); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--border); }
     .tabs { display: flex; margin-top: 12px; background: var(--bg); border-radius: 999px; padding: 4px; border: 1px solid var(--border); }
     .tab { flex: 1; text-align: center; padding: 8px 4px; font-size: 0.85rem; border-radius: 999px; cursor: pointer; color: var(--text-muted); }
     .tab.active { background: var(--primary); color: #fff; font-weight: 600; }
@@ -34,6 +39,10 @@
     main { flex: 1; padding: 12px; padding-bottom: 72px; }
     .screen { display: none; }
     .screen.active { display: block; }
+
+    /* Layout-Anpassung für Desktop */
+    body.desktop-mode .stats-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+
     .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
     
     .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 12px; border-radius: var(--radius); border: none; background: var(--primary); color: #fff; font-size: 0.95rem; font-weight: 600; cursor: pointer; margin-top: 10px; }
@@ -53,7 +62,8 @@
 
     .file-label { display: block; padding: 30px; border: 2px dashed var(--primary); border-radius: var(--radius); text-align: center; color: var(--primary); cursor: pointer; font-weight: 600; }
     
-    select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); margin-top: 5px; }
+    select, .toggle-row { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); margin-top: 5px; }
+    .toggle-row { display: flex; justify-content: space-between; align-items: center; }
   </style>
 </head>
 <body>
@@ -75,50 +85,61 @@
         <label for="imgInp" class="file-label">📸 Tippen zum Scannen</label>
         <div id="status" style="font-size:0.8rem; margin-top:10px; color:var(--text-muted); text-align:center"></div>
       </div>
-      <div class="card" id="lastResult">
+      <div class="card">
         <h2>Letztes Ergebnis</h2>
         <div id="out" style="font-size:0.85rem; color:var(--text-muted)">Noch kein Scan vorhanden.</div>
       </div>
     </section>
 
     <section id="screen-stats" class="screen">
-      <div class="card">
-        <button class="btn ai" id="aiBtn">✨ KI Spar-Analyse</button>
-        <div id="aiRes"></div>
-      </div>
+      <div class="stats-container">
+        <div class="left-col">
+          <div class="card">
+            <button class="btn ai" id="aiBtn">✨ KI Spar-Analyse</button>
+            <div id="aiRes"></div>
+          </div>
 
-      <div class="card">
-        <h2>Kategorie Filter</h2>
-        <div class="category-chips" id="catChips">
-          <div class="chip active" data-cat="ALL">Alle</div>
-          <div class="chip" data-cat="Obst & Gemüse">Obst & Gemüse</div>
-          <div class="chip" data-cat="Fleisch & Wurst">Fleisch & Wurst</div>
-          <div class="chip" data-cat="Backwaren">Backwaren</div>
-          <div class="chip" data-cat="Getränke">Getränke</div>
-          <div class="chip" data-cat="Milchprodukte">Milchprodukte</div>
-          <div class="chip" data-cat="Süßwaren">Süßwaren</div>
-          <div class="chip" data-cat="Haushalt">Haushalt</div>
-          <div class="chip" data-cat="Drogerie">Drogerie</div>
-          <div class="chip" data-cat="Tabak">Tabak</div>
-          <div class="chip" data-cat="Sonstiges">Sonstiges</div>
+          <div class="card">
+            <h2>Kategorie Filter</h2>
+            <div class="category-chips" id="catChips">
+              <div class="chip active" data-cat="ALL">Alle</div>
+              <div class="chip" data-cat="Obst & Gemüse">Obst & Gemüse</div>
+              <div class="chip" data-cat="Fleisch & Wurst">Fleisch & Wurst</div>
+              <div class="chip" data-cat="Backwaren">Backwaren</div>
+              <div class="chip" data-cat="Getränke">Getränke</div>
+              <div class="chip" data-cat="Milchprodukte">Milchprodukte</div>
+              <div class="chip" data-cat="Süßwaren">Süßwaren</div>
+              <div class="chip" data-cat="Haushalt">Haushalt</div>
+              <div class="chip" data-cat="Drogerie">Drogerie</div>
+              <div class="chip" data-cat="Tabak">Tabak</div>
+              <div class="chip" data-cat="Sonstiges">Sonstiges</div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div class="card">
-        <h2>Übersicht</h2>
-        <div class="stats-grid" id="statGrid"></div>
-      </div>
+        <div class="right-col">
+          <div class="card">
+            <h2>Übersicht</h2>
+            <div class="stats-grid" id="statGrid"></div>
+          </div>
 
-      <div class="card">
-        <h2>Historie</h2>
-        <div id="hist"></div>
+          <div class="card">
+            <h2>Historie</h2>
+            <div id="hist"></div>
+          </div>
+        </div>
       </div>
     </section>
 
     <section id="screen-settings" class="screen">
       <div class="card">
-        <h2>Design & Themes</h2>
-        <label for="thm">Wähle deinen Stil:</label>
+        <h2>Ansicht & Design</h2>
+        <div class="toggle-row">
+          <span>Desktop-Optimierung</span>
+          <input type="checkbox" id="desktopToggle" style="width:20px; height:20px;">
+        </div>
+        <br>
+        <label for="thm">Farbschema:</label>
         <select id="thm">
           <option value="default">🔵 Standard Blau</option>
           <option value="dark">🌑 Dark Mode</option>
@@ -130,8 +151,8 @@
         </select>
       </div>
       <div class="card">
-        <h2>Datenverwaltung</h2>
-        <button class="btn" style="background:var(--danger)" onclick="if(confirm('Wirklich alle Daten löschen?')){localStorage.clear();location.reload()}">Alle Daten löschen</button>
+        <h2>Daten</h2>
+        <button class="btn" style="background:var(--danger)" onclick="if(confirm('Alles löschen?')){localStorage.clear();location.reload()}">Alle Daten löschen</button>
       </div>
     </section>
   </main>
@@ -150,7 +171,7 @@ document.querySelectorAll('.tab').forEach(t => {
   });
 });
 
-/* OCR & Laden Erkennung */
+/* OCR */
 document.getElementById('imgInp').addEventListener('change', async (e) => {
   const files = e.target.files;
   const status = document.getElementById('status');
@@ -161,7 +182,7 @@ document.getElementById('imgInp').addEventListener('change', async (e) => {
     await worker.terminate();
 
     const prompt = `Analysiere Bon: Extrahiere Ladenname, Summe und Artikel mit Kategorien (Obst & Gemüse, Fleisch & Wurst, Backwaren, Getränke, Milchprodukte, Süßwaren, Haushalt, Drogerie, Tabak, Sonstiges). 
-    Antworte NUR als JSON: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`;
+    JSON: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`;
     
     try {
       const res = await puter.ai.chat(prompt);
@@ -170,23 +191,20 @@ document.getElementById('imgInp').addEventListener('change', async (e) => {
       db.push({...json, date: new Date().toLocaleDateString()});
       localStorage.setItem(DB_KEY, JSON.stringify(db));
       document.getElementById('out').innerHTML = `✅ <b>${json.shop}</b>: ${json.total.toFixed(2)}€`;
-    } catch(err) {
-      document.getElementById('out').textContent = "Fehler beim Verarbeiten.";
-    }
+    } catch(err) { console.error(err); }
   }
   status.textContent = "Fertig!";
 });
 
-/* KI Spar-Check */
+/* KI Spar-Analyse */
 document.getElementById('aiBtn').addEventListener('click', async () => {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-  if(!db.length) return alert("Scanne zuerst einen Bon!");
-  const summary = db.map(r => `${r.shop}: ${r.total}€`).join(', ');
-  const res = await puter.ai.chat(`Hier sind meine Einkaufsdaten: ${summary}. Erstelle 3 kurze Tipps wie ich bei diesen Läden oder Ausgaben sparen kann. Antworte kurz und knackig auf Deutsch.`);
-  document.getElementById('aiRes').innerHTML = `<div class="ai-box"><b>KI Vorschläge:</b><br>${res.message.content.replace(/\n/g,'<br>')}</div>`;
+  if(!db.length) return alert("Keine Daten!");
+  const res = await puter.ai.chat(`Einkäufe: ${db.map(r => r.shop + ':' + r.total + '€').join(',')}. Gib 3 Spar-Tipps.`);
+  document.getElementById('aiRes').innerHTML = `<div class="ai-box"><b>KI Tipps:</b><br>${res.message.content.replace(/\n/g,'<br>')}</div>`;
 });
 
-/* Filter & Rendering */
+/* Render */
 let currentCat = "ALL";
 document.getElementById('catChips').addEventListener('click', (e) => {
   const chip = e.target.closest('.chip');
@@ -200,46 +218,38 @@ document.getElementById('catChips').addEventListener('click', (e) => {
 
 function render() {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-  let filtered = db;
-  
-  if(currentCat !== "ALL") {
-    filtered = db.map(r => {
-      const catItems = r.items.filter(i => i.c === currentCat);
-      const catTotal = catItems.reduce((s,i) => s + i.p, 0);
-      return {...r, displayTotal: catTotal};
-    }).filter(r => r.displayTotal > 0);
-  } else {
-    filtered = db.map(r => ({...r, displayTotal: r.total}));
-  }
+  let filtered = db.map(r => {
+    const total = currentCat === "ALL" ? r.total : r.items.filter(i => i.c === currentCat).reduce((s,i) => s + i.p, 0);
+    return {...r, viewTotal: total};
+  }).filter(r => r.viewTotal > 0);
 
-  const totalSum = filtered.reduce((s, r) => s + r.displayTotal, 0);
-  document.getElementById('statGrid').innerHTML = `
-    <div class="stat"><span class="stat-val">${totalSum.toFixed(2)}€</span>Gesamt</div>
-    <div class="stat"><span class="stat-val">${filtered.length}</span>Bons</div>
-  `;
-
-  document.getElementById('hist').innerHTML = filtered.slice().reverse().map(r => `
-    <div class="receipt-item">
-      <span><b>${r.shop}</b><br><small>${r.date}</small></span>
-      <span>${r.displayTotal.toFixed(2)}€</span>
-    </div>
-  `).join('') || '<p style="text-align:center;color:var(--text-muted)">Keine Einträge für diese Kategorie.</p>';
+  const sum = filtered.reduce((s, r) => s + r.viewTotal, 0);
+  document.getElementById('statGrid').innerHTML = `<div class="stat"><span class="stat-val">${sum.toFixed(2)}€</span>Summe</div><div class="stat"><span class="stat-val">${filtered.length}</span>Bons</div>`;
+  document.getElementById('hist').innerHTML = filtered.reverse().map(r => `<div class="receipt-item"><span><b>${r.shop}</b><br><small>${r.date}</small></span><span>${r.viewTotal.toFixed(2)}€</span></div>`).join('');
 }
 
-/* Theme Manager */
+/* Settings Logic */
 const thmSelect = document.getElementById('thm');
+const desktopToggle = document.getElementById('desktopToggle');
+
 thmSelect.addEventListener('change', (e) => {
-  const t = e.target.value;
-  document.body.setAttribute('data-theme', t);
-  localStorage.setItem('receipt_theme', t);
+  document.body.setAttribute('data-theme', e.target.value);
+  localStorage.setItem('theme', e.target.value);
 });
 
-// Load saved theme
-const savedTheme = localStorage.getItem('receipt_theme');
-if(savedTheme) {
-  document.body.setAttribute('data-theme', savedTheme);
-  thmSelect.value = savedTheme;
-}
+desktopToggle.addEventListener('change', (e) => {
+  document.body.classList.toggle('desktop-mode', e.target.checked);
+  localStorage.setItem('desktopMode', e.target.checked);
+});
+
+// Load Settings
+const savedTheme = localStorage.getItem('theme');
+if(savedTheme) { document.body.setAttribute('data-theme', savedTheme); thmSelect.value = savedTheme; }
+
+const savedDesktop = localStorage.getItem('desktopMode') === 'true';
+desktopToggle.checked = savedDesktop;
+if(savedDesktop) document.body.classList.add('desktop-mode');
+
 </script>
 </body>
 </html>
