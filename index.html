@@ -2,62 +2,58 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Kassenbon OCR App – Spar-Check</title>
+  <title>Kassenbon OCR – Komplett</title>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-
   <script src="https://js.puter.com/v2/"></script>
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <style>
-    /* ... (Stile bleiben identisch wie zuvor, nur neue Ergänzungen unten) ... */
     :root {
       --primary: #2563eb; --primary-light: #dbeafe; --bg: #f3f4f6; --card: #ffffff;
       --text: #111827; --text-muted: #6b7280; --border: #e5e7eb; --danger: #dc2626; --radius: 12px;
-      --cat-obst: #166534; --cat-fleisch: #b91c1c; --cat-backwaren: #c2410c; --cat-getraenke: #1d4ed8;
-      --cat-milch: #0f766e; --cat-suess: #be185d; --cat-haushalt: #111827; --cat-drogerie: #6d28d9;
-      --cat-tabak: #78350f; --cat-sonstiges: #374151;
     }
     [data-theme="dark"] { --primary: #60a5fa; --primary-light: #1e3a8a; --bg: #111827; --card: #1f2937; --text: #f9fafb; --text-muted: #9ca3af; --border: #374151; --danger: #ef4444; }
-    [data-theme="nature"] { --primary: #059669; --primary-light: #d1fae5; --bg: #ecfdf5; --card: #ffffff; --text: #064e3b; --text-muted: #65a30d; --border: #a7f3d0; }
-    [data-theme="berry"] { --primary: #db2777; --primary-light: #fce7f3; --bg: #fdf2f8; --card: #ffffff; --text: #831843; --text-muted: #be185d; --border: #fbcfe8; }
-
+    
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); transition: all 0.3s; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); }
     .app { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
     header { padding: 16px; background: var(--card); box-shadow: 0 1px 4px rgba(0,0,0,0.06); position: sticky; top: 0; z-index: 10; }
+    
     .tabs { display: flex; margin-top: 12px; background: var(--bg); border-radius: 999px; padding: 4px; border: 1px solid var(--border); }
-    .tab { flex: 1; text-align: center; padding: 8px 4px; font-size: 0.85rem; border-radius: 999px; cursor: pointer; color: var(--text-muted); transition: all 0.2s; }
+    .tab { flex: 1; text-align: center; padding: 8px 4px; font-size: 0.85rem; border-radius: 999px; cursor: pointer; color: var(--text-muted); }
     .tab.active { background: var(--primary); color: #fff; font-weight: 600; }
+    
     main { flex: 1; padding: 12px; padding-bottom: 72px; }
-    .screen { display: none; animation: fadeIn 0.3s ease-in-out; }
+    .screen { display: none; }
     .screen.active { display: block; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-    .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); border: 1px solid var(--border); }
-    .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 12px; border-radius: var(--radius); border: none; background: var(--primary); color: #fff; font-size: 0.95rem; font-weight: 600; cursor: pointer; margin-top: 12px; }
-    .btn.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
-    .btn.ai { background: linear-gradient(135deg, #6366f1, #a855f7); border: none; }
-    .status { font-size: 0.85rem; color: var(--text-muted); margin-top: 10px; font-style: italic; }
-    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .stat { background: var(--primary-light); border-radius: var(--radius); padding: 10px; }
-    .stat-value { font-weight: 700; font-size: 1rem; color: var(--primary); }
-    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.75rem; }
-    th, td { border: 1px solid var(--border); padding: 6px; text-align: left; }
-    .receipt-item { padding: 10px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 0.85rem; }
-    .ai-advice-box { background: #fdf2f8; border: 1px solid #fbcfe8; border-radius: var(--radius); padding: 12px; margin-top: 12px; font-size: 0.85rem; line-height: 1.5; color: #831843; }
-    [data-theme="dark"] .ai-advice-box { background: #312e81; border-color: #4338ca; color: #e0e7ff; }
-    .file-input { display: none; }
-    .file-upload-label { display: flex; flex-direction: column; align-items: center; padding: 20px; border: 2px dashed var(--primary); border-radius: var(--radius); cursor: pointer; }
-    .category-chips { display: flex; gap: 6px; overflow-x: auto; padding: 8px 0; }
-    .chip { flex-shrink: 0; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); font-size: 0.75rem; cursor: pointer; background: var(--card); }
-    .chip.active { background: var(--primary); color: white; }
+    
+    .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); }
+    
+    /* Buttons */
+    .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 12px; border-radius: var(--radius); border: none; background: var(--primary); color: #fff; font-size: 0.95rem; font-weight: 600; cursor: pointer; margin-top: 10px; }
+    .btn.ai { background: linear-gradient(135deg, #6366f1, #a855f7); }
+    
+    /* Stats & Chips */
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .stat { background: var(--primary-light); padding: 12px; border-radius: var(--radius); }
+    .stat-val { display: block; font-weight: 800; color: var(--primary); font-size: 1.1rem; }
+    
+    .category-chips { display: flex; gap: 6px; overflow-x: auto; padding: 10px 0; scrollbar-width: none; }
+    .chip { flex-shrink: 0; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); font-size: 0.75rem; background: var(--card); cursor: pointer; }
+    .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+    .receipt-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+    .ai-box { background: #eff6ff; border-left: 4px solid var(--primary); padding: 12px; margin-top: 10px; border-radius: 4px; font-size: 0.85rem; }
+
+    .file-label { display: block; padding: 30px; border: 2px dashed var(--primary); border-radius: var(--radius); text-align: center; color: var(--primary); cursor: pointer; }
   </style>
 </head>
 <body>
 <div class="app">
   <header>
-    <h1>Kassenbon OCR Pro</h1>
+    <h1>Kassenbon Pro</h1>
     <div class="tabs">
       <div class="tab active" data-screen="scan">Scan</div>
       <div class="tab" data-screen="stats">Verbrauch</div>
@@ -69,197 +65,141 @@
     <section id="screen-scan" class="screen active">
       <div class="card">
         <h2>Bons einlesen</h2>
-        <input type="file" id="imageInput" accept="image/*" multiple class="file-input">
-        <label for="imageInput" class="file-upload-label" id="fileLabel">
-          <span>📸 Tippen zum Auswählen</span>
-          <small id="fileLabelText" style="color:var(--text-muted)">Mehrere Bilder möglich</small>
-        </label>
-        <div id="status" class="status"></div>
+        <input type="file" id="imgInp" accept="image/*" multiple style="display:none">
+        <label for="imgInp" class="file-label">📸 Tippen zum Scannen</label>
+        <div id="status" style="font-size:0.8rem; margin-top:10px; color:var(--text-muted)"></div>
       </div>
-      <div class="card">
+      <div class="card" id="lastResult">
         <h2>Letztes Ergebnis</h2>
-        <div id="outputContainer">Noch kein Scan vorhanden.</div>
+        <div id="out" style="font-size:0.85rem">Noch kein Scan.</div>
       </div>
     </section>
 
     <section id="screen-stats" class="screen">
       <div class="card">
-        <h2>Spar-Analyse</h2>
-        <p style="font-size:0.8rem; color:var(--text-muted)">Lasse deine Einkäufe von der KI analysieren, um Sparpotentiale zu finden.</p>
-        <button class="btn ai" id="aiAdviceBtn">✨ KI Spar-Check starten</button>
-        <div id="aiAdviceResult"></div>
+        <button class="btn ai" id="aiBtn">✨ KI Spar-Analyse</button>
+        <div id="aiRes"></div>
+      </div>
+
+      <div class="card">
+        <h2>Filter</h2>
+        <div class="category-chips" id="catChips">
+          <div class="chip active" data-cat="ALL">Alle</div>
+          <div class="chip" data-cat="Obst & Gemüse">Obst & Gemüse</div>
+          <div class="chip" data-cat="Fleisch & Wurst">Fleisch & Wurst</div>
+          <div class="chip" data-cat="Backwaren">Backwaren</div>
+          <div class="chip" data-cat="Getränke">Getränke</div>
+          <div class="chip" data-cat="Milchprodukte">Milchprodukte</div>
+          <div class="chip" data-cat="Süßwaren">Süßwaren</div>
+          <div class="chip" data-cat="Haushalt">Haushalt</div>
+          <div class="chip" data-cat="Drogerie">Drogerie</div>
+          <div class="chip" data-cat="Tabak">Tabak</div>
+          <div class="chip" data-cat="Sonstiges">Sonstiges</div>
+        </div>
       </div>
 
       <div class="card">
         <h2>Übersicht</h2>
-        <div class="stats-grid" id="statsGrid"></div>
+        <div class="stats-grid" id="statGrid"></div>
       </div>
 
       <div class="card">
-        <h2>Historie (Läden & Bons)</h2>
-        <div class="category-chips" id="categoryChips">
-            <div class="chip active" data-category="ALL">Alle</div>
-            <div class="chip" data-category="Obst & Gemüse">Obst</div>
-            <div class="chip" data-category="Getränke">Getränke</div>
-            <div class="chip" data-category="Drogerie & Kosmetik">Drogerie</div>
-        </div>
-        <div id="receiptList"></div>
+        <h2>Historie</h2>
+        <div id="hist"></div>
       </div>
     </section>
 
     <section id="screen-settings" class="screen">
       <div class="card">
-        <h2>Einstellungen</h2>
-        <div style="margin-bottom:15px">
-            <label>Theme:</label>
-            <select id="themeSelect">
-                <option value="default">Blau</option>
-                <option value="dark">Dark</option>
-                <option value="nature">Natur</option>
-                <option value="berry">Beere</option>
-            </select>
-        </div>
-        <div style="margin-bottom:15px">
-            <label>Personen im Haushalt:</label>
-            <input type="number" id="groupSizeInput" min="1" style="width:50px">
-        </div>
-        <button class="btn secondary" id="clearDataBtn">Alle Daten löschen</button>
+        <h2>Optionen</h2>
+        <p>Theme: <select id="thm"><option value="default">Hell</option><option value="dark">Dunkel</option></select></p>
+        <button class="btn" style="background:var(--danger)" onclick="if(confirm('Alles löschen?')){localStorage.clear();location.reload()}">Daten löschen</button>
       </div>
     </section>
   </main>
 </div>
 
 <script>
-const STORAGE_KEY = 'receipt_data_pro_v3';
-const SETTINGS_KEY = 'receipt_settings_pro_v3';
+const DB_KEY = 'receipts_v4';
 
-/* --- Hilfsfunktionen --- */
-const getReceipts = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-const saveReceipts = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-const getSettings = () => JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{"theme":"default","groupSize":1}');
-const saveSettings = (s) => localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
-
-/* --- Initialisierung --- */
-const settings = getSettings();
-document.body.setAttribute('data-theme', settings.theme);
-document.getElementById('themeSelect').value = settings.theme;
-document.getElementById('groupSizeInput').value = settings.groupSize;
-
-/* --- Navigation --- */
+/* Nav */
 document.querySelectorAll('.tab').forEach(t => {
-    t.addEventListener('click', () => {
-        document.querySelectorAll('.tab, .screen').forEach(el => el.classList.remove('active'));
-        t.classList.add('active');
-        document.getElementById('screen-' + t.dataset.screen).classList.add('active');
-        if(t.dataset.screen === 'stats') { renderStats(); renderHistory(); }
-    });
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab, .screen').forEach(el => el.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('screen-' + t.dataset.screen).classList.add('active');
+    if(t.dataset.screen === 'stats') render();
+  });
 });
 
-/* --- OCR & AI Logik --- */
-document.getElementById('imageInput').addEventListener('change', async (e) => {
-    const files = e.target.files;
-    if(!files.length) return;
+/* OCR & AI */
+document.getElementById('imgInp').addEventListener('change', async (e) => {
+  const files = e.target.files;
+  const status = document.getElementById('status');
+  for(let file of files) {
+    status.textContent = `Scanne ${file.name}...`;
+    const worker = await Tesseract.createWorker("deu");
+    const { data } = await worker.recognize(file);
+    await worker.terminate();
+
+    const prompt = `Analysiere Bon: Extrahiere Ladenname, Summe und Artikel mit Kategorien (Obst & Gemüse, Fleisch & Wurst, Backwaren, Getränke, Milchprodukte, Süßwaren, Haushalt, Drogerie, Tabak, Sonstiges). 
+    JSON Format: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`;
     
-    const status = document.getElementById('status');
-    const container = document.getElementById('outputContainer');
-    container.innerHTML = "";
-
-    for(let i=0; i<files.length; i++){
-        status.textContent = `Verarbeite ${i+1}/${files.length}...`;
-        const worker = await Tesseract.createWorker("deu");
-        const { data } = await worker.recognize(files[i]);
-        await worker.terminate();
-
-        const json = await extractDataWithAI(data.text);
-        if(json) {
-            const receipts = getReceipts();
-            const newEntry = { ...json, id: Date.now() + i, dateISO: new Date().toISOString() };
-            receipts.push(newEntry);
-            saveReceipts(receipts);
-            
-            container.innerHTML += `<div><strong>${json.shop || 'Unbekannter Laden'}</strong>: ${json.total}€</div>`;
-        }
-    }
-    status.textContent = "Fertig!";
+    const res = await puter.ai.chat(prompt);
+    const json = JSON.parse(res.message.content.match(/\{.*\}/s)[0]);
+    
+    const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+    db.push({...json, date: new Date().toLocaleDateString()});
+    localStorage.setItem(DB_KEY, JSON.stringify(db));
+    document.getElementById('out').innerHTML = `<b>${json.shop}</b>: ${json.total}€`;
+  }
+  status.textContent = "Erfolgreich eingelesen!";
 });
 
-async function extractDataWithAI(text) {
-    const prompt = `Extrahiere aus diesem Bon-Text: Ladenname, Gesamtsumme, Datum und Artikel (mit Preis und Kategorie). 
-    Kategorien: Obst & Gemüse, Fleisch & Wurst, Backwaren, Getränke, Milchprodukte, Süßwaren & Snacks, Haushalt, Drogerie & Kosmetik, Tabak, Sonstiges.
-    Antworte NUR als JSON: {"shop": "Name", "total": 0.00, "date": "TT.MM.JJJJ", "items": [{"name": "X", "price": 0.00, "category": "Y"}]}
-    Text: ${text}`;
-    
-    try {
-        const resp = await puter.ai.chat(prompt);
-        const content = typeof resp === 'string' ? resp : resp.message.content;
-        return JSON.parse(content.match(/\{.*\}/s)[0]);
-    } catch(e) { return null; }
+/* Spar-Check */
+document.getElementById('aiBtn').addEventListener('click', async () => {
+  const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+  const summary = db.map(r => `${r.shop}: ${r.total}€`).join(', ');
+  const res = await puter.ai.chat(`Hier meine Einkäufe: ${summary}. Gib mir 3 kurze Tipps zum Geld sparen basierend auf den Läden und Summen.`);
+  document.getElementById('aiRes').innerHTML = `<div class="ai-box">${res.message.content.replace(/\n/g,'<br>')}</div>`;
+});
+
+/* Render Stats & History */
+let currentCat = "ALL";
+document.getElementById('catChips').addEventListener('click', (e) => {
+  if(e.target.classList.contains('chip')) {
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    e.target.classList.add('active');
+    currentCat = e.target.dataset.cat;
+    render();
+  }
+});
+
+function render() {
+  const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+  let filtered = db;
+  if(currentCat !== "ALL") {
+    filtered = db.map(r => ({
+      ...r,
+      total: r.items.filter(i => i.c === currentCat).reduce((s,i) => s + i.p, 0)
+    })).filter(r => r.total > 0);
+  }
+
+  const total = filtered.reduce((s, r) => s + parseFloat(r.total), 0);
+  document.getElementById('statGrid').innerHTML = `
+    <div class="stat"><span class="stat-val">${total.toFixed(2)}€</span>Gesamt</div>
+    <div class="stat"><span class="stat-val">${filtered.length}</span>Bons</div>
+  `;
+
+  document.getElementById('hist').innerHTML = filtered.reverse().map(r => `
+    <div class="receipt-item">
+      <span><b>${r.shop}</b><br><small>${r.date}</small></span>
+      <span>${parseFloat(r.total).toFixed(2)}€</span>
+    </div>
+  `).join('');
 }
 
-/* --- Spar-Check --- */
-document.getElementById('aiAdviceBtn').addEventListener('click', async () => {
-    const btn = document.getElementById('aiAdviceBtn');
-    const resultDiv = document.getElementById('aiAdviceResult');
-    const receipts = getReceipts();
-    
-    if(receipts.length === 0) {
-        resultDiv.innerHTML = "<div class='ai-advice-box'>Scanne zuerst ein paar Bons!</div>";
-        return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = "KI analysiert...";
-    
-    const summary = receipts.map(r => `${r.shop}: ${r.total}€ (${r.items.map(i => i.category).join(',')})`).join('; ');
-    const prompt = `Hier sind meine Einkäufe: ${summary}. Gib mir 3 kurze, knackige Tipps wie ich speziell bei diesen Ausgaben sparen kann. Antworte auf Deutsch.`;
-
-    try {
-        const resp = await puter.ai.chat(prompt);
-        const advice = typeof resp === 'string' ? resp : resp.message.content;
-        resultDiv.innerHTML = `<div class="ai-advice-box"><strong>Spar-Tipps:</strong><br>${advice.replace(/\n/g, '<br>')}</div>`;
-    } catch(e) {
-        resultDiv.innerHTML = "Fehler bei der Analyse.";
-    }
-    btn.disabled = false;
-    btn.textContent = "✨ KI Spar-Check starten";
-});
-
-/* --- Stats & History --- */
-function renderStats() {
-    const receipts = getReceipts();
-    const total = receipts.reduce((s, r) => s + parseFloat(r.total || 0), 0);
-    const grid = document.getElementById('statsGrid');
-    grid.innerHTML = `
-        <div class="stat"><span>Gesamt</span><br><span class="stat-value">${total.toFixed(2)}€</span></div>
-        <div class="stat"><span>Bons</span><br><span class="stat-value">${receipts.length}</span></div>
-    `;
-}
-
-function renderHistory() {
-    const receipts = getReceipts().reverse();
-    const list = document.getElementById('receiptList');
-    list.innerHTML = receipts.map(r => `
-        <div class="receipt-item">
-            <div><strong>${r.shop || 'Laden'}</strong><br><small>${r.date || ''}</small></div>
-            <div style="text-align:right"><strong>${parseFloat(r.total).toFixed(2)}€</strong><br><small>${r.items.length} Pos.</small></div>
-        </div>
-    `).join('');
-}
-
-/* --- Settings Events --- */
-document.getElementById('themeSelect').addEventListener('change', (e) => {
-    const theme = e.target.value;
-    document.body.setAttribute('data-theme', theme);
-    const s = getSettings(); s.theme = theme; saveSettings(s);
-});
-
-document.getElementById('groupSizeInput').addEventListener('input', (e) => {
-    const s = getSettings(); s.groupSize = e.target.value; saveSettings(s);
-});
-
-document.getElementById('clearDataBtn').addEventListener('click', () => {
-    if(confirm("Alles löschen?")) { localStorage.removeItem(STORAGE_KEY); renderStats(); renderHistory(); }
-});
+document.getElementById('thm').addEventListener('change', (e) => document.body.setAttribute('data-theme', e.target.value));
 </script>
 </body>
 </html>
