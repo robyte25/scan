@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Kassenbon Pro – Hybrid Edition</title>
+  <title>Kassenbon Pro – Experten Edition</title>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="https://js.puter.com/v2/"></script>
@@ -10,11 +10,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <style>
-    /* --- THEMES & ROOT --- */
+    /* --- THEMES & ROOT (Alle Themes erhalten) --- */
     :root {
       --primary: #2563eb; --primary-light: #dbeafe; --bg: #f3f4f6; --card: #ffffff;
       --text: #111827; --text-muted: #6b7280; --border: #e5e7eb; --danger: #dc2626; --radius: 12px;
-      --app-width: 480px; /* Standard Smartphone Breite */
+      --app-width: 480px;
     }
     [data-theme="dark"] { --primary: #60a5fa; --primary-light: #1e3a8a; --bg: #111827; --card: #1f2937; --text: #f9fafb; --text-muted: #9ca3af; --border: #374151; }
     [data-theme="nature"] { --primary: #059669; --primary-light: #d1fae5; --bg: #f0fdf4; --card: #ffffff; --text: #064e3b; --border: #bcf0da; }
@@ -23,45 +23,31 @@
     [data-theme="sunset"] { --primary: #ea580c; --primary-light: #ffedd5; --bg: #fff7ed; --card: #ffffff; --text: #7c2d12; --border: #fed7aa; }
     [data-theme="gold"] { --primary: #854d0e; --primary-light: #fef9c3; --bg: #fefce8; --card: #ffffff; --text: #422006; --border: #fef08a; }
 
-    /* --- DESKTOP MODUS AKTIVIERUNG --- */
     body.desktop-mode { --app-width: 1000px; }
 
     * { box-sizing: border-box; transition: all 0.2s ease; }
     body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); }
-    
     .app { max-width: var(--app-width); margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
-    
     header { padding: 16px; background: var(--card); box-shadow: 0 1px 4px rgba(0,0,0,0.06); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--border); }
     .tabs { display: flex; margin-top: 12px; background: var(--bg); border-radius: 999px; padding: 4px; border: 1px solid var(--border); }
     .tab { flex: 1; text-align: center; padding: 8px 4px; font-size: 0.85rem; border-radius: 999px; cursor: pointer; color: var(--text-muted); }
     .tab.active { background: var(--primary); color: #fff; font-weight: 600; }
-    
     main { flex: 1; padding: 12px; padding-bottom: 72px; }
     .screen { display: none; }
     .screen.active { display: block; }
-
-    /* Layout-Anpassung für Desktop */
     body.desktop-mode .stats-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
-
-    .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-    
+    .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); }
     .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 12px; border-radius: var(--radius); border: none; background: var(--primary); color: #fff; font-size: 0.95rem; font-weight: 600; cursor: pointer; margin-top: 10px; }
     .btn.ai { background: linear-gradient(135deg, var(--primary), #a855f7); }
-    
     .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
     .stat { background: var(--primary-light); padding: 12px; border-radius: var(--radius); }
     .stat-val { display: block; font-weight: 800; color: var(--primary); font-size: 1.1rem; }
-    
     .category-chips { display: flex; gap: 6px; overflow-x: auto; padding: 10px 0; scrollbar-width: none; }
-    .category-chips::-webkit-scrollbar { display: none; }
     .chip { flex-shrink: 0; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); font-size: 0.75rem; background: var(--card); cursor: pointer; color: var(--text); }
     .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
-
     .receipt-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
-    .ai-box { background: var(--primary-light); border-left: 4px solid var(--primary); padding: 12px; margin-top: 10px; border-radius: 4px; font-size: 0.85rem; color: var(--text); }
-
+    .ai-box { background: var(--primary-light); border-left: 4px solid var(--primary); padding: 15px; margin-top: 10px; border-radius: 8px; font-size: 0.9rem; color: var(--text); line-height: 1.5; }
     .file-label { display: block; padding: 30px; border: 2px dashed var(--primary); border-radius: var(--radius); text-align: center; color: var(--primary); cursor: pointer; font-weight: 600; }
-    
     select, .toggle-row { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); margin-top: 5px; }
     .toggle-row { display: flex; justify-content: space-between; align-items: center; }
   </style>
@@ -98,7 +84,6 @@
             <button class="btn ai" id="aiBtn">✨ KI Spar-Analyse</button>
             <div id="aiRes"></div>
           </div>
-
           <div class="card">
             <h2>Kategorie Filter</h2>
             <div class="category-chips" id="catChips">
@@ -116,13 +101,11 @@
             </div>
           </div>
         </div>
-
         <div class="right-col">
           <div class="card">
             <h2>Übersicht</h2>
             <div class="stats-grid" id="statGrid"></div>
           </div>
-
           <div class="card">
             <h2>Historie</h2>
             <div id="hist"></div>
@@ -182,7 +165,7 @@ document.getElementById('imgInp').addEventListener('change', async (e) => {
     await worker.terminate();
 
     const prompt = `Analysiere Bon: Extrahiere Ladenname, Summe und Artikel mit Kategorien (Obst & Gemüse, Fleisch & Wurst, Backwaren, Getränke, Milchprodukte, Süßwaren, Haushalt, Drogerie, Tabak, Sonstiges). 
-    JSON: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`;
+    Antworte NUR als JSON: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`;
     
     try {
       const res = await puter.ai.chat(prompt);
@@ -196,12 +179,48 @@ document.getElementById('imgInp').addEventListener('change', async (e) => {
   status.textContent = "Fertig!";
 });
 
-/* KI Spar-Analyse */
+/* PRÄZISIERTER KI SPAR-CHECK */
 document.getElementById('aiBtn').addEventListener('click', async () => {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-  if(!db.length) return alert("Keine Daten!");
-  const res = await puter.ai.chat(`Einkäufe: ${db.map(r => r.shop + ':' + r.total + '€').join(',')}. Gib 3 Spar-Tipps.`);
-  document.getElementById('aiRes').innerHTML = `<div class="ai-box"><b>KI Tipps:</b><br>${res.message.content.replace(/\n/g,'<br>')}</div>`;
+  if(!db.length) return alert("Scanne zuerst einen Bon für die Analyse!");
+  
+  const aiBtn = document.getElementById('aiBtn');
+  aiBtn.textContent = "Analysiere Daten...";
+  aiBtn.disabled = true;
+
+  // Erstelle eine detaillierte Liste der Einkäufe für die KI
+  const dataSummary = db.map(r => {
+    const categories = [...new Set(r.items.map(i => i.c))].join(', ');
+    return `- Laden: ${r.shop}, Summe: ${r.total}€ (Kategorien: ${categories})`;
+  }).join('\n');
+
+  const expertPrompt = `Du bist ein sachlicher deutscher Haushaltsexperte für Preisoptimierung. 
+Hier sind meine realen Einkaufsdaten aus deutschen Supermärkten:
+${dataSummary}
+
+Deine Aufgabe:
+1. Analysiere diese spezifischen Ausgaben und Läden.
+2. Gib exakt 3 kurze, sachliche Ratschläge, wie ich GENAU DIESE Produkte oder Kategorien in Deutschland günstiger kaufen kann (z.B. durch Wechsel zu spezifischen Discountern wie Aldi, Lidl, Netto oder Nutzung von Eigenmarken).
+3. Vergleiche die genannten Läden mit günstigeren Alternativen für die genannten Produktgruppen.
+
+WICHTIGE REGELN:
+- Antworte absolut sachlich und direkt.
+- KEINE Einleitung ("Hier sind Tipps..."), KEINE Floskeln, KEINE Schlussworte.
+- Gib KEINE Hinweise darauf, dass du eine KI bist.
+- Biete KEINE weiteren Pläne oder 2-Wochen-Pläne an.
+- Nutze kein "Wenn du mir sagst..." – beziehe dich nur auf das, was da ist.
+- Formatiere als kurze Aufzählung.`;
+
+  try {
+    const res = await puter.ai.chat(expertPrompt);
+    const advice = typeof res === 'string' ? res : res.message.content;
+    document.getElementById('aiRes').innerHTML = `<div class="ai-box"><b>Optimierungs-Vorschläge:</b><br>${advice.replace(/\n/g,'<br>')}</div>`;
+  } catch(e) {
+    document.getElementById('aiRes').innerHTML = "Analyse derzeit nicht möglich.";
+  } finally {
+    aiBtn.textContent = "✨ KI Spar-Analyse";
+    aiBtn.disabled = false;
+  }
 });
 
 /* Render */
@@ -242,14 +261,11 @@ desktopToggle.addEventListener('change', (e) => {
   localStorage.setItem('desktopMode', e.target.checked);
 });
 
-// Load Settings
 const savedTheme = localStorage.getItem('theme');
 if(savedTheme) { document.body.setAttribute('data-theme', savedTheme); thmSelect.value = savedTheme; }
-
 const savedDesktop = localStorage.getItem('desktopMode') === 'true';
 desktopToggle.checked = savedDesktop;
 if(savedDesktop) document.body.classList.add('desktop-mode');
-
 </script>
 </body>
 </html>
