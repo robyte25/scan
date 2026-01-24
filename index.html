@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Kassenbon Pro</title>
+  <title>Kassenbon Pro – Budget & Inflation</title>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="https://js.puter.com/v2/"></script>
@@ -10,10 +10,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
   <style>
-    /* --- THEMES & ROOT --- */
     :root {
       --primary: #2563eb; --primary-light: #dbeafe; --bg: #f3f4f6; --card: #ffffff;
-      --text: #111827; --text-muted: #6b7280; --border: #e5e7eb; --danger: #dc2626; --warning: #f59e0b; --radius: 12px;
+      --text: #111827; --text-muted: #6b7280; --border: #e5e7eb; --danger: #dc2626; --warning: #f59e0b; --success: #10b981; --radius: 12px;
       --app-width: 480px;
     }
     [data-theme="dark"] { --primary: #60a5fa; --primary-light: #1e3a8a; --bg: #111827; --card: #1f2937; --text: #f9fafb; --text-muted: #9ca3af; --border: #374151; }
@@ -46,12 +45,20 @@
     .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 12px; border-radius: var(--radius); border: none; background: var(--primary); color: #fff; font-size: 0.95rem; font-weight: 600; cursor: pointer; margin-top: 10px; }
     .btn.ai { background: linear-gradient(135deg, var(--primary), #a855f7); }
     
+    /* Budget Progress Bar */
+    .budget-wrap { margin-top: 10px; }
+    .progress-bg { background: var(--border); height: 10px; border-radius: 5px; overflow: hidden; margin-top: 5px; }
+    .progress-fill { background: var(--success); height: 100%; width: 0%; transition: width 0.5s ease, background 0.5s ease; }
+    .progress-fill.warning { background: var(--warning); }
+    .progress-fill.danger { background: var(--danger); }
+
     .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
     .stat { background: var(--primary-light); padding: 12px; border-radius: var(--radius); }
     .stat-val { display: block; font-weight: 800; color: var(--primary); font-size: 1.1rem; }
     
-    /* Preis-Wachhund Style */
+    /* Alerts */
     .alert-card { border-left: 4px solid var(--warning); background: #fffbeb; padding: 12px; border-radius: 8px; margin-bottom: 10px; font-size: 0.85rem; }
+    .inflation-card { border-left: 4px solid var(--danger); background: #fef2f2; padding: 12px; border-radius: 8px; margin-bottom: 10px; font-size: 0.85rem; }
     .ai-box { background: var(--primary-light); border-left: 4px solid var(--primary); padding: 15px; margin-top: 10px; border-radius: 8px; font-size: 0.9rem; color: var(--text); line-height: 1.5; }
 
     .category-chips { display: flex; gap: 6px; overflow-x: auto; padding: 10px 0; scrollbar-width: none; }
@@ -65,11 +72,10 @@
     
     .detail-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
     .detail-table td { padding: 6px 0; border-bottom: 1px dotted var(--border); }
-    .detail-table td.price { text-align: right; font-weight: 600; }
-    
     .del-btn { color: var(--danger); font-size: 0.75rem; background: none; border: none; padding: 8px 0; cursor: pointer; font-weight: 600; }
     .file-label { display: block; padding: 30px; border: 2px dashed var(--primary); border-radius: var(--radius); text-align: center; color: var(--primary); cursor: pointer; font-weight: 600; }
-    select, .toggle-row { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); margin-top: 5px; }
+    
+    input[type="number"], select, .toggle-row { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); margin-top: 5px; }
     .toggle-row { display: flex; justify-content: space-between; align-items: center; }
   </style>
 </head>
@@ -98,11 +104,15 @@
     <section id="screen-stats" class="screen">
       <div class="stats-container">
         <div class="left-col">
+          <div id="budget-card-container"></div>
+          <div id="inflation-container"></div>
           <div id="price-watchdog-container"></div>
           <div class="card">
             <button class="btn ai" id="aiBtn">✨ KI Spar-Analyse</button>
             <div id="aiRes"></div>
           </div>
+        </div>
+        <div class="right-col">
           <div class="card">
             <h2>Filter</h2>
             <div class="category-chips" id="catChips">
@@ -118,11 +128,6 @@
               <div class="chip" data-cat="Tabak">Tabak</div>
               <div class="chip" data-cat="Sonstiges">Sonstiges</div>
             </div>
-          </div>
-        </div>
-        <div class="right-col">
-          <div class="card">
-            <h2>Übersicht</h2>
             <div class="stats-grid" id="statGrid"></div>
           </div>
           <div class="card">
@@ -134,6 +139,11 @@
     </section>
 
     <section id="screen-settings" class="screen">
+      <div class="card">
+        <h2>Budget Planung</h2>
+        <label>Monatliches Limit (€):</label>
+        <input type="number" id="budgetInput" placeholder="z.B. 400">
+      </div>
       <div class="card">
         <h2>Ansicht & Design</h2>
         <div class="toggle-row">
@@ -161,7 +171,7 @@
 </div>
 
 <script>
-const DB_KEY = 'receipts_v10_final';
+const DB_KEY = 'receipts_v11_budget';
 
 /* Navigation */
 document.querySelectorAll('.tab').forEach(t => {
@@ -175,89 +185,88 @@ document.querySelectorAll('.tab').forEach(t => {
 
 /* OCR */
 document.getElementById('imgInp').addEventListener('change', async (e) => {
-  const files = e.target.files;
   const status = document.getElementById('status');
-  for(let file of files) {
-    status.textContent = `Erkenne...`;
+  for(let file of e.target.files) {
+    status.textContent = `Scanne...`;
     const worker = await Tesseract.createWorker("deu");
     const { data } = await worker.recognize(file);
     await worker.terminate();
-
-    const prompt = `Analysiere Bon: Shop, Summe, Artikel+Kategorie. Antworte NUR JSON: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`;
-    
     try {
-      const res = await puter.ai.chat(prompt);
+      const res = await puter.ai.chat(`Analysiere Bon: Shop, Summe, Artikel+Kategorie. Antworte NUR JSON: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`);
       const json = JSON.parse(res.message.content.match(/\{.*\}/s)[0]);
       const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-      db.push({...json, date: new Date().toLocaleDateString(), id: Date.now()});
+      db.push({...json, date: new Date().toLocaleDateString(), timestamp: Date.now(), id: Date.now()});
       localStorage.setItem(DB_KEY, JSON.stringify(db));
-      document.getElementById('latest-scan-container').innerHTML = `<div class="card">✅ Erfasst: ${json.shop} (${json.total.toFixed(2)}€)</div>`;
+      document.getElementById('latest-scan-container').innerHTML = `<div class="card">✅ Erfasst: ${json.shop}</div>`;
     } catch(err) { console.error(err); }
   }
   status.textContent = "Bereit.";
 });
 
-/* KI Spar-Analyse */
-document.getElementById('aiBtn').addEventListener('click', async () => {
-  const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-  if(!db.length) return;
-  const aiBtn = document.getElementById('aiBtn');
-  aiBtn.textContent = "Experte rechnet...";
-  const dataSummary = db.map(r => `- ${r.shop}: ${r.total}€`).join('\n');
-  const res = await puter.ai.chat(`Haushaltsexperte DE. Analysiere:\n${dataSummary}\nGib 3 kurze Tipps zum Sparen. Keine Floskeln.`);
-  document.getElementById('aiRes').innerHTML = `<div class="ai-box">${res.message.content.replace(/\n/g,'<br>')}</div>`;
-  aiBtn.textContent = "✨ KI Spar-Analyse";
-});
+/* Inflations-Tracker Logik */
+function checkInflation(db) {
+  const productHistory = {};
+  // Sortiere nach Zeit (alt nach neu)
+  db.sort((a,b) => (a.timestamp || 0) - (b.timestamp || 0)).forEach(r => {
+    r.items.forEach(i => {
+      const name = i.n.toUpperCase().trim();
+      if(!productHistory[name]) productHistory[name] = [];
+      productHistory[name].push({ p: i.p, d: r.date });
+    });
+  });
 
-/* Preis-Wachhund Logik */
-function checkPriceDifferences(db) {
-  const products = {};
-  db.forEach(r => r.items.forEach(i => {
-    const n = i.n.toUpperCase().trim();
-    if(!products[n]) products[n] = [];
-    products[n].push({ s: r.shop, p: i.p });
-  }));
-
-  let h = "";
-  for(const n in products) {
-    const p = products[n];
-    if(p.length > 1) {
-      const min = p.reduce((a, b) => a.p < b.p ? a : b);
-      const max = p.reduce((a, b) => a.p > b.p ? a : b);
-      if(max.p > min.p * 1.05) h += `<div class="alert-card">⚠️ <b>${n}</b>: Günstiger bei ${min.s} (${min.p.toFixed(2)}€) statt ${max.s}.</div>`;
+  let html = "";
+  for(const name in productHistory) {
+    const history = productHistory[name];
+    if(history.length > 1) {
+      const last = history[history.length - 1];
+      const prev = history[history.length - 2];
+      if(last.p > prev.p) {
+        const diff = ((last.p - prev.p) / prev.p * 100).toFixed(0);
+        html += `<div class="inflation-card">📈 <b>Teuerungs-Alarm: ${name}</b><br>Von ${prev.p.toFixed(2)}€ auf ${last.p.toFixed(2)}€ (+${diff}%)</div>`;
+      }
     }
   }
-  document.getElementById('price-watchdog-container').innerHTML = h ? `<h2>Preis-Wachhund</h2>${h}` : "";
+  document.getElementById('inflation-container').innerHTML = html ? `<h2>Inflation-Check</h2>${html}` : "";
 }
 
-function deleteReceipt(id) {
-  if(confirm('Löschen?')) {
-    let db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-    localStorage.setItem(DB_KEY, JSON.stringify(db.filter(r => r.id !== id)));
-    render();
-  }
-}
+/* Budget Logik */
+function renderBudget(currentSum) {
+  const limit = parseFloat(localStorage.getItem('monthly_budget') || 0);
+  if(limit <= 0) return;
+  
+  const percent = Math.min((currentSum / limit) * 100, 100);
+  let statusClass = "";
+  if(percent > 90) statusClass = "danger";
+  else if(percent > 70) statusClass = "warning";
 
-/* Render */
-let currentCat = "ALL";
-document.getElementById('catChips').addEventListener('click', (e) => {
-  const chip = e.target.closest('.chip');
-  if(chip) {
-    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-    chip.classList.add('active');
-    currentCat = chip.dataset.cat;
-    render();
-  }
-});
+  document.getElementById('budget-card-container').innerHTML = `
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; font-weight:bold">
+        <span>Monats-Budget</span>
+        <span>${currentSum.toFixed(2)} / ${limit}€</span>
+      </div>
+      <div class="progress-bg">
+        <div class="progress-fill ${statusClass}" style="width: ${percent}%"></div>
+      </div>
+    </div>
+  `;
+}
 
 function render() {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-  checkPriceDifferences(db);
+  
+  // Preis-Wachhund & Inflation
+  checkInflation(db);
+  
   let filtered = db.map(r => {
     const items = currentCat === "ALL" ? r.items : r.items.filter(i => i.c === currentCat);
     return {...r, viewItems: items, viewTotal: items.reduce((s,i) => s + i.p, 0)};
   }).filter(r => r.viewTotal > 0);
+
   const sum = filtered.reduce((s, r) => s + r.viewTotal, 0);
+  renderBudget(sum);
+
   document.getElementById('statGrid').innerHTML = `<div class="stat"><span class="stat-val">${sum.toFixed(2)}€</span>Summe</div><div class="stat"><span class="stat-val">${filtered.length}</span>Bons</div>`;
   document.getElementById('hist').innerHTML = filtered.reverse().map(r => `
     <div class="receipt-item">
@@ -273,16 +282,44 @@ function render() {
   `).join('');
 }
 
-/* Settings */
+/* Settings Events */
+document.getElementById('budgetInput').addEventListener('input', (e) => {
+  localStorage.setItem('monthly_budget', e.target.value);
+  render();
+});
+document.getElementById('budgetInput').value = localStorage.getItem('monthly_budget');
+
+/* Standard Funktionen */
+let currentCat = "ALL";
+document.getElementById('catChips').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if(chip) {
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    currentCat = chip.dataset.cat;
+    render();
+  }
+});
+
+function deleteReceipt(id) {
+  if(confirm('Löschen?')) {
+    let db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+    localStorage.setItem(DB_KEY, JSON.stringify(db.filter(r => r.id !== id)));
+    render();
+  }
+}
+
+document.getElementById('aiBtn').addEventListener('click', async () => {
+  const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+  if(!db.length) return;
+  const res = await puter.ai.chat(`Spar-Tipps für DE basierend auf diesen Käufen:\n${db.slice(-5).map(r=>r.total+'€ bei '+r.shop).join('\n')}`);
+  document.getElementById('aiRes').innerHTML = `<div class="ai-box">${res.message.content.replace(/\n/g,'<br>')}</div>`;
+});
+
 const thmSelect = document.getElementById('thm');
-const desktopToggle = document.getElementById('desktopToggle');
 thmSelect.addEventListener('change', (e) => { document.body.setAttribute('data-theme', e.target.value); localStorage.setItem('theme', e.target.value); });
-desktopToggle.addEventListener('change', (e) => { document.body.classList.toggle('desktop-mode', e.target.checked); localStorage.setItem('desktopMode', e.target.checked); });
 const savedTheme = localStorage.getItem('theme');
 if(savedTheme) { document.body.setAttribute('data-theme', savedTheme); thmSelect.value = savedTheme; }
-const savedDesktop = localStorage.getItem('desktopMode') === 'true';
-desktopToggle.checked = savedDesktop;
-if(savedDesktop) document.body.classList.add('desktop-mode');
 </script>
 </body>
 </html>
