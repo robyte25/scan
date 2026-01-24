@@ -2,12 +2,12 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Kassenbon Pro – Clean Detail View</title>
+  <title>Kassenbon Pro – Final Polish</title>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="https://js.puter.com/v2/"></script>
 
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
   <style>
     /* --- THEMES & ROOT --- */
@@ -25,8 +25,18 @@
 
     body.desktop-mode { --app-width: 1000px; }
 
-    * { box-sizing: border-box; transition: all 0.2s ease; }
-    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    /* --- GLOBAL FIXES (Entfernt blaue Vierecke) --- */
+    * { 
+      box-sizing: border-box; 
+      transition: all 0.2s ease; 
+      -webkit-tap-highlight-color: transparent; /* Entfernt blaues Highlight auf Handy */
+    }
+    
+    button, .tab, .chip, .receipt-item, label {
+      outline: none !important; /* Entfernt Fokus-Rahmen */
+    }
+
+    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; }
     .app { max-width: var(--app-width); margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
     
     header { padding: 16px; background: var(--card); box-shadow: 0 1px 4px rgba(0,0,0,0.06); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--border); }
@@ -53,16 +63,16 @@
     .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
 
     /* Historie & Details */
-    .receipt-item { padding: 12px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
-    .receipt-header { display: flex; justify-content: space-between; align-items: center; }
+    .receipt-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .receipt-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
     .receipt-details { display: none; margin-top: 10px; background: var(--bg); padding: 12px; border-radius: 8px; }
     .receipt-details.open { display: block; }
     
     .detail-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-    .detail-table th { text-align: left; color: var(--text-muted); padding-bottom: 8px; font-weight: normal; }
     .detail-table td { padding: 6px 0; border-bottom: 1px dotted var(--border); }
     .detail-table td.price { text-align: right; font-weight: 600; }
-    .detail-table td.cat-cell { color: var(--primary); font-size: 0.7rem; text-transform: uppercase; }
+    
+    .del-btn { color: var(--danger); font-size: 0.75rem; background: none; border: none; padding: 8px 0; cursor: pointer; font-weight: 600; }
 
     .ai-box { background: var(--primary-light); border-left: 4px solid var(--primary); padding: 15px; margin-top: 10px; border-radius: 8px; font-size: 0.9rem; color: var(--text); line-height: 1.5; }
     .file-label { display: block; padding: 30px; border: 2px dashed var(--primary); border-radius: var(--radius); text-align: center; color: var(--primary); cursor: pointer; font-weight: 600; }
@@ -157,7 +167,7 @@
 </div>
 
 <script>
-const DB_KEY = 'receipts_v6_clean';
+const DB_KEY = 'receipts_v7_final';
 
 /* Navigation */
 document.querySelectorAll('.tab').forEach(t => {
@@ -169,59 +179,54 @@ document.querySelectorAll('.tab').forEach(t => {
   });
 });
 
-/* OCR & AI Verarbeitung */
+/* OCR */
 document.getElementById('imgInp').addEventListener('change', async (e) => {
   const files = e.target.files;
   const status = document.getElementById('status');
   for(let file of files) {
-    status.textContent = `Analysiere ${file.name}...`;
+    status.textContent = `Erkenne...`;
     const worker = await Tesseract.createWorker("deu");
     const { data } = await worker.recognize(file);
     await worker.terminate();
 
-    const prompt = `Analysiere diesen Kassenbon. Extrahiere: Ladenname, Gesamtsumme, und eine Liste aller Artikel.
-    Für jeden Artikel: Name, Preis und ordne ihn einer dieser Kategorien zu: Obst & Gemüse, Fleisch & Wurst, Backwaren, Getränke, Milchprodukte, Süßwaren, Haushalt, Drogerie, Tabak, Sonstiges.
-    Ignoriere Steuerzeichen wie (A, B, E, nn, =). 
-    Antworte NUR als JSON: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`;
+    const prompt = `Analysiere Bon: Shop, Summe, Artikel+Kategorie (Obst & Gemüse, Fleisch & Wurst, Backwaren, Getränke, Milchprodukte, Süßwaren, Haushalt, Drogerie, Tabak, Sonstiges). 
+    Antworte NUR JSON: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`;
     
     try {
       const res = await puter.ai.chat(prompt);
-      const cleanJson = res.message.content.match(/\{.*\}/s)[0];
-      const json = JSON.parse(cleanJson);
+      const json = JSON.parse(res.message.content.match(/\{.*\}/s)[0]);
       const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-      const newEntry = {...json, date: new Date().toLocaleDateString(), id: Date.now()};
-      db.push(newEntry);
+      db.push({...json, date: new Date().toLocaleDateString(), id: Date.now()});
       localStorage.setItem(DB_KEY, JSON.stringify(db));
-      
-      document.getElementById('latest-scan-container').innerHTML = `
-        <div class="card" style="border-left: 5px solid var(--primary)">
-            <h3>✅ Erfasst: ${newEntry.shop}</h3>
-            <p>Summe: <b>${newEntry.total.toFixed(2)}€</b></p>
-        </div>`;
-    } catch(err) { console.error("OCR Error", err); }
+      document.getElementById('latest-scan-container').innerHTML = `<div class="card">✅ Erfasst: ${json.shop} (${json.total.toFixed(2)}€)</div>`;
+    } catch(err) { console.error(err); }
   }
-  status.textContent = "Bereit für nächsten Scan.";
+  status.textContent = "Fertig.";
 });
 
-/* KI Spar-Check */
+/* KI Spar-Analyse */
 document.getElementById('aiBtn').addEventListener('click', async () => {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-  if(!db.length) return alert("Keine Bons vorhanden.");
+  if(!db.length) return;
   const aiBtn = document.getElementById('aiBtn');
-  aiBtn.textContent = "Experte analysiert...";
-  aiBtn.disabled = true;
-
-  const dataSummary = db.map(r => `- ${r.shop}: ${r.total}€ (Produkte: ${r.items.slice(0,5).map(i=>i.n).join(', ')})`).join('\n');
-  const expertPrompt = `Du bist ein sachlicher deutscher Haushaltsexperte. Analysiere diese Einkäufe:\n${dataSummary}\nGib 3 kurze, direkte Tipps zum Sparen in deutschen Supermärkten. Keine Einleitung, kein KI-Gelaber, keine Pläne. Nur Fakten.`;
-
-  try {
-    const res = await puter.ai.chat(expertPrompt);
-    document.getElementById('aiRes').innerHTML = `<div class="ai-box"><b>Einkaufs-Optimierung:</b><br>${res.message.content.replace(/\n/g,'<br>')}</div>`;
-  } catch(e) { console.error(e); }
-  aiBtn.textContent = "✨ KI Spar-Analyse"; aiBtn.disabled = false;
+  aiBtn.textContent = "Experte rechnet...";
+  const dataSummary = db.map(r => `- ${r.shop}: ${r.total}€`).join('\n');
+  const res = await puter.ai.chat(`Du bist ein sachlicher deutscher Haushaltsexperte. Analysiere:\n${dataSummary}\nGib 3 kurze, direkte Tipps zum Sparen in DE. Keine Floskeln.`);
+  document.getElementById('aiRes').innerHTML = `<div class="ai-box">${res.message.content.replace(/\n/g,'<br>')}</div>`;
+  aiBtn.textContent = "✨ KI Spar-Analyse";
 });
 
-/* Rendering */
+/* Löschfunktion */
+function deleteReceipt(id) {
+  if(confirm('Diesen Bon löschen?')) {
+    let db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+    db = db.filter(r => r.id !== id);
+    localStorage.setItem(DB_KEY, JSON.stringify(db));
+    render();
+  }
+}
+
+/* Render */
 let currentCat = "ALL";
 document.getElementById('catChips').addEventListener('click', (e) => {
   const chip = e.target.closest('.chip');
@@ -235,41 +240,28 @@ document.getElementById('catChips').addEventListener('click', (e) => {
 
 function render() {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-  
   let filtered = db.map(r => {
     const items = currentCat === "ALL" ? r.items : r.items.filter(i => i.c === currentCat);
-    const sum = items.reduce((s,i) => s + i.p, 0);
-    return {...r, viewItems: items, viewTotal: sum};
+    return {...r, viewItems: items, viewTotal: items.reduce((s,i) => s + i.p, 0)};
   }).filter(r => r.viewTotal > 0);
 
-  const totalSum = filtered.reduce((s, r) => s + r.viewTotal, 0);
-  document.getElementById('statGrid').innerHTML = `
-    <div class="stat"><span class="stat-val">${totalSum.toFixed(2)}€</span>Summe</div>
-    <div class="stat"><span class="stat-val">${filtered.length}</span>Bons</div>
-  `;
+  const sum = filtered.reduce((s, r) => s + r.viewTotal, 0);
+  document.getElementById('statGrid').innerHTML = `<div class="stat"><span class="stat-val">${sum.toFixed(2)}€</span>Summe</div><div class="stat"><span class="stat-val">${filtered.length}</span>Bons</div>`;
 
   document.getElementById('hist').innerHTML = filtered.reverse().map(r => `
-    <div class="receipt-item" onclick="document.getElementById('details-${r.id}').classList.toggle('open')">
-      <div class="receipt-header">
+    <div class="receipt-item">
+      <div class="receipt-header" onclick="document.getElementById('details-${r.id}').classList.toggle('open')">
         <span><b>${r.shop}</b><br><small>${r.date}</small></span>
-        <span><b>${r.viewTotal.toFixed(2)}€</b> <small>▾</small></span>
+        <span><b>${r.viewTotal.toFixed(2)}€</b> ▾</span>
       </div>
       <div class="receipt-details" id="details-${r.id}">
         <table class="detail-table">
-          <thead><tr><th>Produkt</th><th>Kat.</th><th style="text-align:right">Preis</th></tr></thead>
-          <tbody>
-            ${r.viewItems.map(i => `
-              <tr>
-                <td>${i.n}</td>
-                <td class="cat-cell">${i.c.split(' ')[0]}</td>
-                <td class="price">${i.p.toFixed(2)}€</td>
-              </tr>
-            `).join('')}
-          </tbody>
+          ${r.viewItems.map(i => `<tr><td>${i.n}</td><td class="price">${i.p.toFixed(2)}€</td></tr>`).join('')}
         </table>
+        <button class="del-btn" onclick="deleteReceipt(${r.id})">🗑️ Bon entfernen</button>
       </div>
     </div>
-  `).join('') || '<p style="text-align:center; color:var(--text-muted)">Keine Einträge gefunden.</p>';
+  `).join('') || '<p style="text-align:center">Keine Daten.</p>';
 }
 
 /* Settings */
@@ -277,7 +269,6 @@ const thmSelect = document.getElementById('thm');
 const desktopToggle = document.getElementById('desktopToggle');
 thmSelect.addEventListener('change', (e) => { document.body.setAttribute('data-theme', e.target.value); localStorage.setItem('theme', e.target.value); });
 desktopToggle.addEventListener('change', (e) => { document.body.classList.toggle('desktop-mode', e.target.checked); localStorage.setItem('desktopMode', e.target.checked); });
-
 const savedTheme = localStorage.getItem('theme');
 if(savedTheme) { document.body.setAttribute('data-theme', savedTheme); thmSelect.value = savedTheme; }
 const savedDesktop = localStorage.getItem('desktopMode') === 'true';
