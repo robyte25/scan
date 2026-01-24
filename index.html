@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Kassenbon Pro – Final Polish</title>
+  <title>Kassenbon Pro – Hybrid Preis-Check</title>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="https://js.puter.com/v2/"></script>
@@ -10,10 +10,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
   <style>
-    /* --- THEMES & ROOT --- */
+    /* --- THEMES & ROOT (Unverändert) --- */
     :root {
       --primary: #2563eb; --primary-light: #dbeafe; --bg: #f3f4f6; --card: #ffffff;
-      --text: #111827; --text-muted: #6b7280; --border: #e5e7eb; --danger: #dc2626; --radius: 12px;
+      --text: #111827; --text-muted: #6b7280; --border: #e5e7eb; --danger: #dc2626; --warning: #f59e0b; --success: #10b981; --radius: 12px;
       --app-width: 480px;
     }
     [data-theme="dark"] { --primary: #60a5fa; --primary-light: #1e3a8a; --bg: #111827; --card: #1f2937; --text: #f9fafb; --text-muted: #9ca3af; --border: #374151; }
@@ -25,20 +25,11 @@
 
     body.desktop-mode { --app-width: 1000px; }
 
-    /* --- GLOBAL FIXES (Entfernt blaue Vierecke) --- */
-    * { 
-      box-sizing: border-box; 
-      transition: all 0.2s ease; 
-      -webkit-tap-highlight-color: transparent; /* Entfernt blaues Highlight auf Handy */
-    }
-    
-    button, .tab, .chip, .receipt-item, label {
-      outline: none !important; /* Entfernt Fokus-Rahmen */
-    }
+    * { box-sizing: border-box; transition: all 0.2s ease; -webkit-tap-highlight-color: transparent; }
+    button, .tab, .chip, .receipt-item, label { outline: none !important; }
 
     body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; }
     .app { max-width: var(--app-width); margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
-    
     header { padding: 16px; background: var(--card); box-shadow: 0 1px 4px rgba(0,0,0,0.06); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--border); }
     .tabs { display: flex; margin-top: 12px; background: var(--bg); border-radius: 999px; padding: 4px; border: 1px solid var(--border); }
     .tab { flex: 1; text-align: center; padding: 8px 4px; font-size: 0.85rem; border-radius: 999px; cursor: pointer; color: var(--text-muted); }
@@ -47,40 +38,56 @@
     main { flex: 1; padding: 12px; padding-bottom: 72px; }
     .screen { display: none; }
     .screen.active { display: block; }
-    
     body.desktop-mode .stats-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
     
     .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); }
     .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 12px; border-radius: var(--radius); border: none; background: var(--primary); color: #fff; font-size: 0.95rem; font-weight: 600; cursor: pointer; margin-top: 10px; }
     .btn.ai { background: linear-gradient(135deg, var(--primary), #a855f7); }
+    .btn.search { background: linear-gradient(135deg, #0ea5e9, #2563eb); }
     
     .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
     .stat { background: var(--primary-light); padding: 12px; border-radius: var(--radius); }
     .stat-val { display: block; font-weight: 800; color: var(--primary); font-size: 1.1rem; }
-    
+
+    /* Vergleichs-Boxen */
+    .compare-box { margin-top: 12px; padding: 10px; border-radius: 8px; font-size: 0.85rem; border: 1px solid var(--border); }
+    .compare-local { background: var(--primary-light); color: var(--primary); margin-bottom: 8px; }
+    .compare-web { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+
+    /* --- SUCHE OVERLAY --- */
+    #searchOverlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; padding: 20px; }
+    #searchOverlay.active { display: flex; }
+    .search-card { background: var(--card); width: 100%; max-width: 400px; margin: 0 auto; border-radius: var(--radius); padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    .search-input { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-size: 1rem; margin: 10px 0; }
+
     .category-chips { display: flex; gap: 6px; overflow-x: auto; padding: 10px 0; scrollbar-width: none; }
     .chip { flex-shrink: 0; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); font-size: 0.75rem; background: var(--card); cursor: pointer; color: var(--text); }
     .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
 
-    /* Historie & Details */
     .receipt-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
     .receipt-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
     .receipt-details { display: none; margin-top: 10px; background: var(--bg); padding: 12px; border-radius: 8px; }
     .receipt-details.open { display: block; }
-    
     .detail-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
     .detail-table td { padding: 6px 0; border-bottom: 1px dotted var(--border); }
-    .detail-table td.price { text-align: right; font-weight: 600; }
-    
     .del-btn { color: var(--danger); font-size: 0.75rem; background: none; border: none; padding: 8px 0; cursor: pointer; font-weight: 600; }
-
-    .ai-box { background: var(--primary-light); border-left: 4px solid var(--primary); padding: 15px; margin-top: 10px; border-radius: 8px; font-size: 0.9rem; color: var(--text); line-height: 1.5; }
     .file-label { display: block; padding: 30px; border: 2px dashed var(--primary); border-radius: var(--radius); text-align: center; color: var(--primary); cursor: pointer; font-weight: 600; }
     select, .toggle-row { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); margin-top: 5px; }
     .toggle-row { display: flex; justify-content: space-between; align-items: center; }
   </style>
 </head>
 <body>
+
+<div id="searchOverlay">
+  <div class="search-card">
+    <h2 style="margin-top:0">KI Preis-Vergleich</h2>
+    <input type="text" id="searchInput" class="search-input" placeholder="Produktname eingeben...">
+    <button class="btn search" id="execSearch">Web & Lokal vergleichen</button>
+    <button class="btn" style="background:var(--bg); color:var(--text); margin-top:8px" onclick="toggleSearch()">Schließen</button>
+    <div id="searchRes" style="margin-top:15px; max-height: 300px; overflow-y: auto;"></div>
+  </div>
+</div>
+
 <div class="app">
   <header>
     <h1>Kassenbon Pro</h1>
@@ -105,8 +112,10 @@
     <section id="screen-stats" class="screen">
       <div class="stats-container">
         <div class="left-col">
+          <div id="price-watchdog-container"></div>
           <div class="card">
             <button class="btn ai" id="aiBtn">✨ KI Spar-Analyse</button>
+            <button class="btn search" onclick="toggleSearch()">🔍 KI Produkt-Vergleich</button>
             <div id="aiRes"></div>
           </div>
           <div class="card">
@@ -167,9 +176,63 @@
 </div>
 
 <script>
-const DB_KEY = 'receipts_v7_final';
+const DB_KEY = 'receipts_v9_hybrid';
 
-/* Navigation */
+function toggleSearch() {
+  document.getElementById('searchOverlay').classList.toggle('active');
+  document.getElementById('searchRes').innerHTML = '';
+}
+
+/* KI HYBRID SUCHE */
+document.getElementById('execSearch').addEventListener('click', async () => {
+  const query = document.getElementById('searchInput').value.trim();
+  if(!query) return;
+  
+  const resDiv = document.getElementById('searchRes');
+  resDiv.innerHTML = '<p style="text-align:center; font-size:0.8rem">Suche & vergleiche Daten...</p>';
+  
+  // 1. Lokale Suche in der DB
+  const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+  let localMatch = null;
+  db.forEach(r => {
+    r.items.forEach(i => {
+      if(i.n.toLowerCase().includes(query.toLowerCase())) {
+        if(!localMatch || i.p < localMatch.p) localMatch = { shop: r.shop, p: i.p, name: i.n };
+      }
+    });
+  });
+
+  try {
+    // 2. Web Suche
+    const response = await puter.ai.chat(
+      `Finde den aktuell günstigsten Preis für "${query}" in Deutschland (Supermärkte/Discounter). Antworte extrem kurz: Ladenname und Preis.`,
+      { model: 'openai/gpt-5.2-chat', tools: [{type: "web_search"}] }
+    );
+
+    let html = '';
+    if(localMatch) {
+      html += `
+        <div class="compare-box compare-local">
+          <b>Dein Bestpreis (Lokal):</b><br>
+          ${localMatch.name}: ${localMatch.p.toFixed(2)}€ bei ${localMatch.shop}
+        </div>`;
+    } else {
+      html += `<div class="compare-box" style="background:var(--bg)">Kein lokaler Kauf von "${query}" gefunden.</div>`;
+    }
+
+    html += `
+      <div class="compare-box compare-web">
+        <b>Aktueller Web-Check:</b><br>
+        ${response.message.content.replace(/\n/g,'<br>')}
+      </div>`;
+
+    resDiv.innerHTML = html;
+  } catch(e) {
+    resDiv.innerHTML = '<p style="color:var(--danger)">Verbindung zum Experten fehlgeschlagen.</p>';
+  }
+});
+
+/* CORE FUNKTIONEN */
 document.querySelectorAll('.tab').forEach(t => {
   t.addEventListener('click', () => {
     document.querySelectorAll('.tab, .screen').forEach(el => el.classList.remove('active'));
@@ -179,54 +242,47 @@ document.querySelectorAll('.tab').forEach(t => {
   });
 });
 
-/* OCR */
 document.getElementById('imgInp').addEventListener('change', async (e) => {
-  const files = e.target.files;
   const status = document.getElementById('status');
-  for(let file of files) {
+  for(let file of e.target.files) {
     status.textContent = `Erkenne...`;
     const worker = await Tesseract.createWorker("deu");
     const { data } = await worker.recognize(file);
     await worker.terminate();
-
-    const prompt = `Analysiere Bon: Shop, Summe, Artikel+Kategorie (Obst & Gemüse, Fleisch & Wurst, Backwaren, Getränke, Milchprodukte, Süßwaren, Haushalt, Drogerie, Tabak, Sonstiges). 
-    Antworte NUR JSON: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`;
-    
     try {
-      const res = await puter.ai.chat(prompt);
+      const res = await puter.ai.chat(`Analysiere Bon: Shop, Summe, Artikel+Kategorie. Antworte NUR JSON: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`);
       const json = JSON.parse(res.message.content.match(/\{.*\}/s)[0]);
       const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
       db.push({...json, date: new Date().toLocaleDateString(), id: Date.now()});
       localStorage.setItem(DB_KEY, JSON.stringify(db));
-      document.getElementById('latest-scan-container').innerHTML = `<div class="card">✅ Erfasst: ${json.shop} (${json.total.toFixed(2)}€)</div>`;
+      document.getElementById('latest-scan-container').innerHTML = `<div class="card">✅ Erfasst: ${json.shop}</div>`;
     } catch(err) { console.error(err); }
   }
-  status.textContent = "Fertig.";
+  status.textContent = "Bereit.";
 });
 
-/* KI Spar-Analyse */
-document.getElementById('aiBtn').addEventListener('click', async () => {
+function render() {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-  if(!db.length) return;
-  const aiBtn = document.getElementById('aiBtn');
-  aiBtn.textContent = "Experte rechnet...";
-  const dataSummary = db.map(r => `- ${r.shop}: ${r.total}€`).join('\n');
-  const res = await puter.ai.chat(`Du bist ein sachlicher deutscher Haushaltsexperte. Analysiere:\n${dataSummary}\nGib 3 kurze, direkte Tipps zum Sparen in DE. Keine Floskeln.`);
-  document.getElementById('aiRes').innerHTML = `<div class="ai-box">${res.message.content.replace(/\n/g,'<br>')}</div>`;
-  aiBtn.textContent = "✨ KI Spar-Analyse";
-});
-
-/* Löschfunktion */
-function deleteReceipt(id) {
-  if(confirm('Diesen Bon löschen?')) {
-    let db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-    db = db.filter(r => r.id !== id);
-    localStorage.setItem(DB_KEY, JSON.stringify(db));
-    render();
-  }
+  let filtered = db.map(r => {
+    const items = currentCat === "ALL" ? r.items : r.items.filter(i => i.c === currentCat);
+    return {...r, viewItems: items, viewTotal: items.reduce((s,i) => s + i.p, 0)};
+  }).filter(r => r.viewTotal > 0);
+  const sum = filtered.reduce((s, r) => s + r.viewTotal, 0);
+  document.getElementById('statGrid').innerHTML = `<div class="stat"><span class="stat-val">${sum.toFixed(2)}€</span>Summe</div><div class="stat"><span class="stat-val">${filtered.length}</span>Bons</div>`;
+  document.getElementById('hist').innerHTML = filtered.reverse().map(r => `
+    <div class="receipt-item">
+      <div class="receipt-header" onclick="document.getElementById('details-${r.id}').classList.toggle('open')">
+        <span><b>${r.shop}</b><br><small>${r.date}</small></span>
+        <span><b>${r.viewTotal.toFixed(2)}€</b> ▾</span>
+      </div>
+      <div class="receipt-details" id="details-${r.id}">
+        <table class="detail-table">${r.viewItems.map(i => `<tr><td>${i.n}</td><td style="text-align:right"><b>${i.p.toFixed(2)}€</b></td></tr>`).join('')}</table>
+        <button class="del-btn" onclick="deleteReceipt(${r.id})">🗑️ Entfernen</button>
+      </div>
+    </div>
+  `).join('');
 }
 
-/* Render */
 let currentCat = "ALL";
 document.getElementById('catChips').addEventListener('click', (e) => {
   const chip = e.target.closest('.chip');
@@ -238,42 +294,25 @@ document.getElementById('catChips').addEventListener('click', (e) => {
   }
 });
 
-function render() {
-  const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-  let filtered = db.map(r => {
-    const items = currentCat === "ALL" ? r.items : r.items.filter(i => i.c === currentCat);
-    return {...r, viewItems: items, viewTotal: items.reduce((s,i) => s + i.p, 0)};
-  }).filter(r => r.viewTotal > 0);
-
-  const sum = filtered.reduce((s, r) => s + r.viewTotal, 0);
-  document.getElementById('statGrid').innerHTML = `<div class="stat"><span class="stat-val">${sum.toFixed(2)}€</span>Summe</div><div class="stat"><span class="stat-val">${filtered.length}</span>Bons</div>`;
-
-  document.getElementById('hist').innerHTML = filtered.reverse().map(r => `
-    <div class="receipt-item">
-      <div class="receipt-header" onclick="document.getElementById('details-${r.id}').classList.toggle('open')">
-        <span><b>${r.shop}</b><br><small>${r.date}</small></span>
-        <span><b>${r.viewTotal.toFixed(2)}€</b> ▾</span>
-      </div>
-      <div class="receipt-details" id="details-${r.id}">
-        <table class="detail-table">
-          ${r.viewItems.map(i => `<tr><td>${i.n}</td><td class="price">${i.p.toFixed(2)}€</td></tr>`).join('')}
-        </table>
-        <button class="del-btn" onclick="deleteReceipt(${r.id})">🗑️ Bon entfernen</button>
-      </div>
-    </div>
-  `).join('') || '<p style="text-align:center">Keine Daten.</p>';
+function deleteReceipt(id) {
+  if(confirm('Löschen?')) {
+    let db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+    localStorage.setItem(DB_KEY, JSON.stringify(db.filter(r => r.id !== id)));
+    render();
+  }
 }
 
-/* Settings */
+document.getElementById('aiBtn').addEventListener('click', async () => {
+  const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+  if(!db.length) return;
+  const res = await puter.ai.chat(`Spar-Tipps für diese Ausgaben:\n${db.map(r=>r.total+'€ bei '+r.shop).join('\n')}`);
+  document.getElementById('aiRes').innerHTML = `<div class="ai-box">${res.message.content.replace(/\n/g,'<br>')}</div>`;
+});
+
 const thmSelect = document.getElementById('thm');
-const desktopToggle = document.getElementById('desktopToggle');
 thmSelect.addEventListener('change', (e) => { document.body.setAttribute('data-theme', e.target.value); localStorage.setItem('theme', e.target.value); });
-desktopToggle.addEventListener('change', (e) => { document.body.classList.toggle('desktop-mode', e.target.checked); localStorage.setItem('desktopMode', e.target.checked); });
 const savedTheme = localStorage.getItem('theme');
 if(savedTheme) { document.body.setAttribute('data-theme', savedTheme); thmSelect.value = savedTheme; }
-const savedDesktop = localStorage.getItem('desktopMode') === 'true';
-desktopToggle.checked = savedDesktop;
-if(savedDesktop) document.body.classList.add('desktop-mode');
 </script>
 </body>
 </html>
