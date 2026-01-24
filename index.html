@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Kassenbon OCR App – Multi-Upload</title>
+  <title>Kassenbon OCR App – Fixed Themes</title>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
@@ -82,6 +82,7 @@
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: var(--bg);
       color: var(--text);
+      /* Wichtig: Transition sorgt für weichen Farbwechsel */
       transition: background 0.3s, color 0.3s;
     }
 
@@ -183,9 +184,6 @@
       line-height: 1.4;
     }
 
-    /* ---------------------------------------------------------
-       CUSTOM FILE INPUT STYLING
-    --------------------------------------------------------- */
     .file-upload-wrapper {
       margin-top: 12px;
       position: relative;
@@ -235,8 +233,6 @@
       color: var(--primary);
       border-color: var(--primary);
     }
-
-    /* --------------------------------------------------------- */
 
     .status {
       font-size: 0.85rem;
@@ -327,7 +323,6 @@
       font-weight: 600;
     }
 
-    /* Multi-Result Styling */
     .result-block {
       margin-bottom: 24px;
       padding-bottom: 16px;
@@ -355,7 +350,6 @@
       padding: 4px 0;
     }
 
-    /* Settings Inputs */
     .settings-row {
       display: flex;
       align-items: center;
@@ -593,7 +587,7 @@
           <input type="number" id="groupSizeInput" min="1" value="1" style="width:80px; text-align:center;">
         </div>
 
-        <button class="btn" id="saveSettingsBtn">Einstellungen speichern</button>
+        <button class="btn" id="saveSettingsBtn">Personenanzahl speichern</button>
         <div id="settingsStatus" class="status"></div>
       </div>
 
@@ -685,6 +679,7 @@ function applyTheme(themeName) {
   }
 }
 
+// Initial beim Start laden
 const initialSettings = loadSettings();
 applyTheme(initialSettings.theme);
 
@@ -699,7 +694,6 @@ fileInput.addEventListener('change', async (e) => {
   const files = e.target.files;
   if (!files || files.length === 0) return;
 
-  // UI Update: Label
   if (files.length === 1) {
     fileLabelText.innerHTML = `<strong>${files[0].name}</strong><br>bereit`;
   } else {
@@ -707,11 +701,9 @@ fileInput.addEventListener('change', async (e) => {
   }
   fileLabel.classList.add('has-file');
 
-  // Start Processing
   const status = document.getElementById("status");
   const outputContainer = document.getElementById("outputContainer");
   
-  // Clear old results
   outputContainer.innerHTML = "";
 
   for (let i = 0; i < files.length; i++) {
@@ -730,7 +722,6 @@ fileInput.addEventListener('change', async (e) => {
   renderStats();
   renderReceiptList();
 
-  // Reset Input Label (delayed)
   setTimeout(() => {
      if(status.textContent === "Alle Dateien verarbeitet!") {
         fileLabelText.innerHTML = "Weiteren Bon scannen";
@@ -740,19 +731,16 @@ fileInput.addEventListener('change', async (e) => {
 });
 
 /* ---------------------------------------------------------
-   Single File Processing Logic (Refactored)
+   Single File Processing Logic
 --------------------------------------------------------- */
 async function processSingleFile(file, container) {
-  // 1. OCR
   const worker = await Tesseract.createWorker("deu");
   const { data } = await worker.recognize(file);
   await worker.terminate();
 
-  // 2. AI
   const result = await extractWithPuter(data.text);
   if (!result) throw new Error("KI Extraktion fehlgeschlagen");
 
-  // 3. Render HTML
   const date = result.date || "";
   const total = result.total || "0,00";
   const items = Array.isArray(result.items) ? result.items : [];
@@ -767,7 +755,6 @@ async function processSingleFile(file, container) {
   `;
   container.appendChild(div);
 
-  // 4. Save
   const receipts = loadReceipts();
   const now = new Date();
   let dateISO = now.toISOString();
@@ -785,7 +772,7 @@ async function processSingleFile(file, container) {
   }
 
   receipts.push({
-    id: Date.now() + Math.random(), // Unique ID
+    id: Date.now() + Math.random(),
     dateISO,
     dateDisplay,
     total: String(total).replace(",", "."),
@@ -795,12 +782,8 @@ async function processSingleFile(file, container) {
   saveReceipts(receipts);
 }
 
-/* ---------------------------------------------------------
-   Tabelle rendern
---------------------------------------------------------- */
 function renderTable(items) {
   if (!items || !items.length) return "<p>Keine Artikel erkannt.</p>";
-
   let html = `<table><tr><th>Artikel</th><th>Kategorie</th><th>Preis (€)</th></tr>`;
   for (const it of items) {
     const price = Number(it.price);
@@ -812,16 +795,14 @@ function renderTable(items) {
 }
 
 /* ---------------------------------------------------------
-   Puter AI – JSON-Extraktion
+   Puter AI
 --------------------------------------------------------- */
 async function extractWithPuter(ocrText) {
   ocrText = ocrText.replace(/[{}]/g, "");
 
   const prompt = `
 Hier ist ein OCR-Kassenbontext:
-
 ${ocrText}
-
 Du sollst:
 - Produktnamen korrigieren
 - OCR-Fehler bereinigen
@@ -842,7 +823,6 @@ Erlaubte Kategorien (EXAKT so schreiben):
 - "Sonstiges"
 
 Gib das Ergebnis GENAU in diesem Format zurück:
-
 {
   "date": "TT.MM.JJJJ",
   "total": "12.34",
@@ -889,7 +869,7 @@ Gib das Ergebnis GENAU in diesem Format zurück:
 }
 
 /* ---------------------------------------------------------
-   Zeitraum-Filter Logik
+   Zeitraum & Stats
 --------------------------------------------------------- */
 function getDateRangeForFilter(filterValue, customFrom, customTo) {
   const now = new Date();
@@ -972,9 +952,6 @@ function filterReceiptsByCategory(receipts, category) {
   }).filter(r => (r.items || []).length > 0);
 }
 
-/* ---------------------------------------------------------
-   Verbrauchsberechnung
---------------------------------------------------------- */
 function computeStats(receipts, groupSize) {
   if (!receipts.length) {
     return {
@@ -1021,9 +998,6 @@ function formatEuro(value) {
   return value.toFixed(2).replace(".", ",") + " €";
 }
 
-/* ---------------------------------------------------------
-   Stats & Liste rendern
---------------------------------------------------------- */
 const timeFilterSelect = document.getElementById('timeFilter');
 const customDateRow = document.getElementById('customDateRow');
 const customFromInput = document.getElementById('customFrom');
@@ -1099,7 +1073,7 @@ function renderReceiptList() {
 }
 
 /* ---------------------------------------------------------
-   Einstellungen UI
+   Einstellungen UI (FIXED)
 --------------------------------------------------------- */
 const groupSizeInput = document.getElementById('groupSizeInput');
 const themeSelect = document.getElementById('themeSelect');
@@ -1112,6 +1086,20 @@ function initSettingsUI() {
   themeSelect.value = settings.theme || 'default';
 }
 
+// 1. Theme-Wechsel: Sofort anzeigen und speichern
+themeSelect.addEventListener('change', () => {
+  const newTheme = themeSelect.value;
+  
+  // Optisches Feedback sofort
+  applyTheme(newTheme);
+  
+  // Speichern ohne Button-Klick
+  const currentSettings = loadSettings();
+  currentSettings.theme = newTheme;
+  saveSettings(currentSettings);
+});
+
+// 2. Button nur noch für Haushaltgröße nötig (speichert aber sicherheitshalber alles)
 saveSettingsBtn.addEventListener('click', () => {
   const size = Number(groupSizeInput.value);
   const validSize = size > 0 ? Math.round(size) : 1;
@@ -1129,9 +1117,6 @@ saveSettingsBtn.addEventListener('click', () => {
   setTimeout(() => settingsStatus.textContent = "", 2000);
 });
 
-/* ---------------------------------------------------------
-   Daten löschen
---------------------------------------------------------- */
 document.getElementById('clearDataBtn').addEventListener('click', () => {
   if (!confirm("Wirklich alle gespeicherten Bons unwiderruflich löschen?")) return;
   saveReceipts([]);
@@ -1139,9 +1124,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   renderReceiptList();
 });
 
-/* ---------------------------------------------------------
-   Init
---------------------------------------------------------- */
+// Init beim Laden
 initSettingsUI();
 renderStats();
 renderReceiptList();
