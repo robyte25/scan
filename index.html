@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Kassenbon Pro – Experten Edition</title>
+  <title>Kassenbon Pro – Detail Ansicht</title>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="https://js.puter.com/v2/"></script>
@@ -10,7 +10,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <style>
-    /* --- THEMES & ROOT (Alle Themes erhalten) --- */
+    /* --- THEMES & ROOT --- */
     :root {
       --primary: #2563eb; --primary-light: #dbeafe; --bg: #f3f4f6; --card: #ffffff;
       --text: #111827; --text-muted: #6b7280; --border: #e5e7eb; --danger: #dc2626; --radius: 12px;
@@ -32,20 +32,31 @@
     .tabs { display: flex; margin-top: 12px; background: var(--bg); border-radius: 999px; padding: 4px; border: 1px solid var(--border); }
     .tab { flex: 1; text-align: center; padding: 8px 4px; font-size: 0.85rem; border-radius: 999px; cursor: pointer; color: var(--text-muted); }
     .tab.active { background: var(--primary); color: #fff; font-weight: 600; }
+    
     main { flex: 1; padding: 12px; padding-bottom: 72px; }
     .screen { display: none; }
     .screen.active { display: block; }
     body.desktop-mode .stats-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
     .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); }
+    
     .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 12px; border-radius: var(--radius); border: none; background: var(--primary); color: #fff; font-size: 0.95rem; font-weight: 600; cursor: pointer; margin-top: 10px; }
     .btn.ai { background: linear-gradient(135deg, var(--primary), #a855f7); }
+    
     .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
     .stat { background: var(--primary-light); padding: 12px; border-radius: var(--radius); }
     .stat-val { display: block; font-weight: 800; color: var(--primary); font-size: 1.1rem; }
+    
     .category-chips { display: flex; gap: 6px; overflow-x: auto; padding: 10px 0; scrollbar-width: none; }
     .chip { flex-shrink: 0; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); font-size: 0.75rem; background: var(--card); cursor: pointer; color: var(--text); }
     .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
-    .receipt-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+
+    /* Historie Styling */
+    .receipt-item { padding: 12px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+    .receipt-header { display: flex; justify-content: space-between; align-items: center; }
+    .receipt-details { display: none; margin-top: 10px; background: var(--bg); padding: 10px; border-radius: 8px; font-size: 0.8rem; }
+    .receipt-details.open { display: block; }
+    .detail-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; padding: 4px 0; border-bottom: 1px dotted var(--border); }
+
     .ai-box { background: var(--primary-light); border-left: 4px solid var(--primary); padding: 15px; margin-top: 10px; border-radius: 8px; font-size: 0.9rem; color: var(--text); line-height: 1.5; }
     .file-label { display: block; padding: 30px; border: 2px dashed var(--primary); border-radius: var(--radius); text-align: center; color: var(--primary); cursor: pointer; font-weight: 600; }
     select, .toggle-row { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); margin-top: 5px; }
@@ -71,10 +82,7 @@
         <label for="imgInp" class="file-label">📸 Tippen zum Scannen</label>
         <div id="status" style="font-size:0.8rem; margin-top:10px; color:var(--text-muted); text-align:center"></div>
       </div>
-      <div class="card">
-        <h2>Letztes Ergebnis</h2>
-        <div id="out" style="font-size:0.85rem; color:var(--text-muted)">Noch kein Scan vorhanden.</div>
-      </div>
+      <div id="latest-scan-container"></div>
     </section>
 
     <section id="screen-stats" class="screen">
@@ -107,7 +115,7 @@
             <div class="stats-grid" id="statGrid"></div>
           </div>
           <div class="card">
-            <h2>Historie</h2>
+            <h2>Historie <small>(Klicken für Details)</small></h2>
             <div id="hist"></div>
           </div>
         </div>
@@ -119,7 +127,7 @@
         <h2>Ansicht & Design</h2>
         <div class="toggle-row">
           <span>Desktop-Optimierung</span>
-          <input type="checkbox" id="desktopToggle" style="width:20px; height:20px;">
+          <input type="checkbox" id="desktopToggle">
         </div>
         <br>
         <label for="thm">Farbschema:</label>
@@ -142,7 +150,7 @@
 </div>
 
 <script>
-const DB_KEY = 'receipts_v4_themed';
+const DB_KEY = 'receipts_v5_final';
 
 /* Navigation */
 document.querySelectorAll('.tab').forEach(t => {
@@ -164,66 +172,63 @@ document.getElementById('imgInp').addEventListener('change', async (e) => {
     const { data } = await worker.recognize(file);
     await worker.terminate();
 
-    const prompt = `Analysiere Bon: Extrahiere Ladenname, Summe und Artikel mit Kategorien (Obst & Gemüse, Fleisch & Wurst, Backwaren, Getränke, Milchprodukte, Süßwaren, Haushalt, Drogerie, Tabak, Sonstiges). 
-    Antworte NUR als JSON: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`;
+    const prompt = `Analysiere Bon: Extrahiere Ladenname, Gesamtsumme und ALLE Artikel mit Preis und Kategorie. 
+    Antworte NUR als JSON: {"shop":"Name","total":0.00,"items":[{"n":"Produktname","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`;
     
     try {
       const res = await puter.ai.chat(prompt);
       const json = JSON.parse(res.message.content.match(/\{.*\}/s)[0]);
       const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-      db.push({...json, date: new Date().toLocaleDateString()});
+      const newEntry = {...json, date: new Date().toLocaleDateString(), id: Date.now()};
+      db.push(newEntry);
       localStorage.setItem(DB_KEY, JSON.stringify(db));
-      document.getElementById('out').innerHTML = `✅ <b>${json.shop}</b>: ${json.total.toFixed(2)}€`;
+      
+      // Kurze Info im Scan-Screen
+      document.getElementById('latest-scan-container').innerHTML = `
+        <div class="card">
+            <h3>Letzter Scan: ${newEntry.shop}</h3>
+            <p>Summe: ${newEntry.total.toFixed(2)}€</p>
+            <p><small>Details findest du im Reiter "Verbrauch".</small></p>
+        </div>`;
     } catch(err) { console.error(err); }
   }
   status.textContent = "Fertig!";
 });
 
-/* PRÄZISIERTER KI SPAR-CHECK */
+/* KI Spar-Analyse (Prompt wie gewünscht) */
 document.getElementById('aiBtn').addEventListener('click', async () => {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-  if(!db.length) return alert("Scanne zuerst einen Bon für die Analyse!");
+  if(!db.length) return alert("Keine Daten vorhanden.");
   
   const aiBtn = document.getElementById('aiBtn');
-  aiBtn.textContent = "Analysiere Daten...";
+  aiBtn.textContent = "Analysiere...";
   aiBtn.disabled = true;
 
-  // Erstelle eine detaillierte Liste der Einkäufe für die KI
-  const dataSummary = db.map(r => {
-    const categories = [...new Set(r.items.map(i => i.c))].join(', ');
-    return `- Laden: ${r.shop}, Summe: ${r.total}€ (Kategorien: ${categories})`;
-  }).join('\n');
+  const dataSummary = db.map(r => `- Laden: ${r.shop}, Summe: ${r.total}€ (Produkte: ${r.items.map(i=>i.n).join(', ')})`).join('\n');
 
   const expertPrompt = `Du bist ein sachlicher deutscher Haushaltsexperte für Preisoptimierung. 
-Hier sind meine realen Einkaufsdaten aus deutschen Supermärkten:
+Hier sind meine realen Einkaufsdaten:
 ${dataSummary}
 
 Deine Aufgabe:
 1. Analysiere diese spezifischen Ausgaben und Läden.
 2. Gib exakt 3 kurze, sachliche Ratschläge, wie ich GENAU DIESE Produkte oder Kategorien in Deutschland günstiger kaufen kann (z.B. durch Wechsel zu spezifischen Discountern wie Aldi, Lidl, Netto oder Nutzung von Eigenmarken).
-3. Vergleiche die genannten Läden mit günstigeren Alternativen für die genannten Produktgruppen.
 
-WICHTIGE REGELN:
-- Antworte absolut sachlich und direkt.
-- KEINE Einleitung ("Hier sind Tipps..."), KEINE Floskeln, KEINE Schlussworte.
-- Gib KEINE Hinweise darauf, dass du eine KI bist.
+REGELN:
+- Antworte absolut sachlich und direkt. Keine Einleitung, keine KI-Floskeln.
 - Biete KEINE weiteren Pläne oder 2-Wochen-Pläne an.
-- Nutze kein "Wenn du mir sagst..." – beziehe dich nur auf das, was da ist.
-- Formatiere als kurze Aufzählung.`;
+- Nutze kein "Wenn du mir sagst..." – beziehe dich nur auf die Daten.`;
 
   try {
     const res = await puter.ai.chat(expertPrompt);
     const advice = typeof res === 'string' ? res : res.message.content;
     document.getElementById('aiRes').innerHTML = `<div class="ai-box"><b>Optimierungs-Vorschläge:</b><br>${advice.replace(/\n/g,'<br>')}</div>`;
-  } catch(e) {
-    document.getElementById('aiRes').innerHTML = "Analyse derzeit nicht möglich.";
-  } finally {
-    aiBtn.textContent = "✨ KI Spar-Analyse";
-    aiBtn.disabled = false;
-  }
+  } catch(e) { console.error(e); }
+  aiBtn.textContent = "✨ KI Spar-Analyse";
+  aiBtn.disabled = false;
 });
 
-/* Render */
+/* Render Historie & Filter */
 let currentCat = "ALL";
 document.getElementById('catChips').addEventListener('click', (e) => {
   const chip = e.target.closest('.chip');
@@ -237,30 +242,54 @@ document.getElementById('catChips').addEventListener('click', (e) => {
 
 function render() {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+  
+  // Filter Logik
   let filtered = db.map(r => {
-    const total = currentCat === "ALL" ? r.total : r.items.filter(i => i.c === currentCat).reduce((s,i) => s + i.p, 0);
-    return {...r, viewTotal: total};
+    const items = currentCat === "ALL" ? r.items : r.items.filter(i => i.c === currentCat);
+    const sum = items.reduce((s,i) => s + i.p, 0);
+    return {...r, viewItems: items, viewTotal: sum};
   }).filter(r => r.viewTotal > 0);
 
-  const sum = filtered.reduce((s, r) => s + r.viewTotal, 0);
-  document.getElementById('statGrid').innerHTML = `<div class="stat"><span class="stat-val">${sum.toFixed(2)}€</span>Summe</div><div class="stat"><span class="stat-val">${filtered.length}</span>Bons</div>`;
-  document.getElementById('hist').innerHTML = filtered.reverse().map(r => `<div class="receipt-item"><span><b>${r.shop}</b><br><small>${r.date}</small></span><span>${r.viewTotal.toFixed(2)}€</span></div>`).join('');
+  // Stats
+  const totalSum = filtered.reduce((s, r) => s + r.viewTotal, 0);
+  document.getElementById('statGrid').innerHTML = `
+    <div class="stat"><span class="stat-val">${totalSum.toFixed(2)}€</span>Summe</div>
+    <div class="stat"><span class="stat-val">${filtered.length}</span>Bons</div>
+  `;
+
+  // Historie Liste
+  document.getElementById('hist').innerHTML = filtered.reverse().map(r => `
+    <div class="receipt-item" onclick="document.getElementById('details-${r.id}').classList.toggle('open')">
+      <div class="receipt-header">
+        <span><b>${r.shop}</b><br><small>${r.date}</small></span>
+        <span>${r.viewTotal.toFixed(2)}€ ▾</span>
+      </div>
+      <div class="receipt-details" id="details-${r.id}">
+        ${r.viewItems.map(i => `
+          <div class="detail-row">
+            <span>${i.n}</span>
+            <span style="color:var(--text-muted)">${i.c}</span>
+            <b>${i.p.toFixed(2)}€</b>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('') || '<p style="text-align:center">Keine Daten.</p>';
 }
 
-/* Settings Logic */
+/* Settings */
 const thmSelect = document.getElementById('thm');
 const desktopToggle = document.getElementById('desktopToggle');
-
 thmSelect.addEventListener('change', (e) => {
   document.body.setAttribute('data-theme', e.target.value);
   localStorage.setItem('theme', e.target.value);
 });
-
 desktopToggle.addEventListener('change', (e) => {
   document.body.classList.toggle('desktop-mode', e.target.checked);
   localStorage.setItem('desktopMode', e.target.checked);
 });
 
+// Load
 const savedTheme = localStorage.getItem('theme');
 if(savedTheme) { document.body.setAttribute('data-theme', savedTheme); thmSelect.value = savedTheme; }
 const savedDesktop = localStorage.getItem('desktopMode') === 'true';
