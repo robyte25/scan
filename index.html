@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Kassenbon Pro – Detail Ansicht</title>
+  <title>Kassenbon Pro – Clean Detail View</title>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="https://js.puter.com/v2/"></script>
@@ -28,6 +28,7 @@
     * { box-sizing: border-box; transition: all 0.2s ease; }
     body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); }
     .app { max-width: var(--app-width); margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
+    
     header { padding: 16px; background: var(--card); box-shadow: 0 1px 4px rgba(0,0,0,0.06); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--border); }
     .tabs { display: flex; margin-top: 12px; background: var(--bg); border-radius: 999px; padding: 4px; border: 1px solid var(--border); }
     .tab { flex: 1; text-align: center; padding: 8px 4px; font-size: 0.85rem; border-radius: 999px; cursor: pointer; color: var(--text-muted); }
@@ -36,9 +37,10 @@
     main { flex: 1; padding: 12px; padding-bottom: 72px; }
     .screen { display: none; }
     .screen.active { display: block; }
-    body.desktop-mode .stats-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
-    .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); }
     
+    body.desktop-mode .stats-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+    
+    .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); }
     .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 12px; border-radius: var(--radius); border: none; background: var(--primary); color: #fff; font-size: 0.95rem; font-weight: 600; cursor: pointer; margin-top: 10px; }
     .btn.ai { background: linear-gradient(135deg, var(--primary), #a855f7); }
     
@@ -50,12 +52,17 @@
     .chip { flex-shrink: 0; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); font-size: 0.75rem; background: var(--card); cursor: pointer; color: var(--text); }
     .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
 
-    /* Historie Styling */
+    /* Historie & Details */
     .receipt-item { padding: 12px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
     .receipt-header { display: flex; justify-content: space-between; align-items: center; }
-    .receipt-details { display: none; margin-top: 10px; background: var(--bg); padding: 10px; border-radius: 8px; font-size: 0.8rem; }
+    .receipt-details { display: none; margin-top: 10px; background: var(--bg); padding: 12px; border-radius: 8px; }
     .receipt-details.open { display: block; }
-    .detail-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; padding: 4px 0; border-bottom: 1px dotted var(--border); }
+    
+    .detail-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .detail-table th { text-align: left; color: var(--text-muted); padding-bottom: 8px; font-weight: normal; }
+    .detail-table td { padding: 6px 0; border-bottom: 1px dotted var(--border); }
+    .detail-table td.price { text-align: right; font-weight: 600; }
+    .detail-table td.cat-cell { color: var(--primary); font-size: 0.7rem; text-transform: uppercase; }
 
     .ai-box { background: var(--primary-light); border-left: 4px solid var(--primary); padding: 15px; margin-top: 10px; border-radius: 8px; font-size: 0.9rem; color: var(--text); line-height: 1.5; }
     .file-label { display: block; padding: 30px; border: 2px dashed var(--primary); border-radius: var(--radius); text-align: center; color: var(--primary); cursor: pointer; font-weight: 600; }
@@ -93,7 +100,7 @@
             <div id="aiRes"></div>
           </div>
           <div class="card">
-            <h2>Kategorie Filter</h2>
+            <h2>Filter</h2>
             <div class="category-chips" id="catChips">
               <div class="chip active" data-cat="ALL">Alle</div>
               <div class="chip" data-cat="Obst & Gemüse">Obst & Gemüse</div>
@@ -115,7 +122,7 @@
             <div class="stats-grid" id="statGrid"></div>
           </div>
           <div class="card">
-            <h2>Historie <small>(Klicken für Details)</small></h2>
+            <h2>Historie</h2>
             <div id="hist"></div>
           </div>
         </div>
@@ -150,7 +157,7 @@
 </div>
 
 <script>
-const DB_KEY = 'receipts_v5_final';
+const DB_KEY = 'receipts_v6_clean';
 
 /* Navigation */
 document.querySelectorAll('.tab').forEach(t => {
@@ -162,73 +169,59 @@ document.querySelectorAll('.tab').forEach(t => {
   });
 });
 
-/* OCR */
+/* OCR & AI Verarbeitung */
 document.getElementById('imgInp').addEventListener('change', async (e) => {
   const files = e.target.files;
   const status = document.getElementById('status');
   for(let file of files) {
-    status.textContent = `Scanne ${file.name}...`;
+    status.textContent = `Analysiere ${file.name}...`;
     const worker = await Tesseract.createWorker("deu");
     const { data } = await worker.recognize(file);
     await worker.terminate();
 
-    const prompt = `Analysiere Bon: Extrahiere Ladenname, Gesamtsumme und ALLE Artikel mit Preis und Kategorie. 
-    Antworte NUR als JSON: {"shop":"Name","total":0.00,"items":[{"n":"Produktname","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`;
+    const prompt = `Analysiere diesen Kassenbon. Extrahiere: Ladenname, Gesamtsumme, und eine Liste aller Artikel.
+    Für jeden Artikel: Name, Preis und ordne ihn einer dieser Kategorien zu: Obst & Gemüse, Fleisch & Wurst, Backwaren, Getränke, Milchprodukte, Süßwaren, Haushalt, Drogerie, Tabak, Sonstiges.
+    Ignoriere Steuerzeichen wie (A, B, E, nn, =). 
+    Antworte NUR als JSON: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`;
     
     try {
       const res = await puter.ai.chat(prompt);
-      const json = JSON.parse(res.message.content.match(/\{.*\}/s)[0]);
+      const cleanJson = res.message.content.match(/\{.*\}/s)[0];
+      const json = JSON.parse(cleanJson);
       const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
       const newEntry = {...json, date: new Date().toLocaleDateString(), id: Date.now()};
       db.push(newEntry);
       localStorage.setItem(DB_KEY, JSON.stringify(db));
       
-      // Kurze Info im Scan-Screen
       document.getElementById('latest-scan-container').innerHTML = `
-        <div class="card">
-            <h3>Letzter Scan: ${newEntry.shop}</h3>
-            <p>Summe: ${newEntry.total.toFixed(2)}€</p>
-            <p><small>Details findest du im Reiter "Verbrauch".</small></p>
+        <div class="card" style="border-left: 5px solid var(--primary)">
+            <h3>✅ Erfasst: ${newEntry.shop}</h3>
+            <p>Summe: <b>${newEntry.total.toFixed(2)}€</b></p>
         </div>`;
-    } catch(err) { console.error(err); }
+    } catch(err) { console.error("OCR Error", err); }
   }
-  status.textContent = "Fertig!";
+  status.textContent = "Bereit für nächsten Scan.";
 });
 
-/* KI Spar-Analyse (Prompt wie gewünscht) */
+/* KI Spar-Check */
 document.getElementById('aiBtn').addEventListener('click', async () => {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-  if(!db.length) return alert("Keine Daten vorhanden.");
-  
+  if(!db.length) return alert("Keine Bons vorhanden.");
   const aiBtn = document.getElementById('aiBtn');
-  aiBtn.textContent = "Analysiere...";
+  aiBtn.textContent = "Experte analysiert...";
   aiBtn.disabled = true;
 
-  const dataSummary = db.map(r => `- Laden: ${r.shop}, Summe: ${r.total}€ (Produkte: ${r.items.map(i=>i.n).join(', ')})`).join('\n');
-
-  const expertPrompt = `Du bist ein sachlicher deutscher Haushaltsexperte für Preisoptimierung. 
-Hier sind meine realen Einkaufsdaten:
-${dataSummary}
-
-Deine Aufgabe:
-1. Analysiere diese spezifischen Ausgaben und Läden.
-2. Gib exakt 3 kurze, sachliche Ratschläge, wie ich GENAU DIESE Produkte oder Kategorien in Deutschland günstiger kaufen kann (z.B. durch Wechsel zu spezifischen Discountern wie Aldi, Lidl, Netto oder Nutzung von Eigenmarken).
-
-REGELN:
-- Antworte absolut sachlich und direkt. Keine Einleitung, keine KI-Floskeln.
-- Biete KEINE weiteren Pläne oder 2-Wochen-Pläne an.
-- Nutze kein "Wenn du mir sagst..." – beziehe dich nur auf die Daten.`;
+  const dataSummary = db.map(r => `- ${r.shop}: ${r.total}€ (Produkte: ${r.items.slice(0,5).map(i=>i.n).join(', ')})`).join('\n');
+  const expertPrompt = `Du bist ein sachlicher deutscher Haushaltsexperte. Analysiere diese Einkäufe:\n${dataSummary}\nGib 3 kurze, direkte Tipps zum Sparen in deutschen Supermärkten. Keine Einleitung, kein KI-Gelaber, keine Pläne. Nur Fakten.`;
 
   try {
     const res = await puter.ai.chat(expertPrompt);
-    const advice = typeof res === 'string' ? res : res.message.content;
-    document.getElementById('aiRes').innerHTML = `<div class="ai-box"><b>Optimierungs-Vorschläge:</b><br>${advice.replace(/\n/g,'<br>')}</div>`;
+    document.getElementById('aiRes').innerHTML = `<div class="ai-box"><b>Einkaufs-Optimierung:</b><br>${res.message.content.replace(/\n/g,'<br>')}</div>`;
   } catch(e) { console.error(e); }
-  aiBtn.textContent = "✨ KI Spar-Analyse";
-  aiBtn.disabled = false;
+  aiBtn.textContent = "✨ KI Spar-Analyse"; aiBtn.disabled = false;
 });
 
-/* Render Historie & Filter */
+/* Rendering */
 let currentCat = "ALL";
 document.getElementById('catChips').addEventListener('click', (e) => {
   const chip = e.target.closest('.chip');
@@ -243,53 +236,48 @@ document.getElementById('catChips').addEventListener('click', (e) => {
 function render() {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
   
-  // Filter Logik
   let filtered = db.map(r => {
     const items = currentCat === "ALL" ? r.items : r.items.filter(i => i.c === currentCat);
     const sum = items.reduce((s,i) => s + i.p, 0);
     return {...r, viewItems: items, viewTotal: sum};
   }).filter(r => r.viewTotal > 0);
 
-  // Stats
   const totalSum = filtered.reduce((s, r) => s + r.viewTotal, 0);
   document.getElementById('statGrid').innerHTML = `
     <div class="stat"><span class="stat-val">${totalSum.toFixed(2)}€</span>Summe</div>
     <div class="stat"><span class="stat-val">${filtered.length}</span>Bons</div>
   `;
 
-  // Historie Liste
   document.getElementById('hist').innerHTML = filtered.reverse().map(r => `
     <div class="receipt-item" onclick="document.getElementById('details-${r.id}').classList.toggle('open')">
       <div class="receipt-header">
         <span><b>${r.shop}</b><br><small>${r.date}</small></span>
-        <span>${r.viewTotal.toFixed(2)}€ ▾</span>
+        <span><b>${r.viewTotal.toFixed(2)}€</b> <small>▾</small></span>
       </div>
       <div class="receipt-details" id="details-${r.id}">
-        ${r.viewItems.map(i => `
-          <div class="detail-row">
-            <span>${i.n}</span>
-            <span style="color:var(--text-muted)">${i.c}</span>
-            <b>${i.p.toFixed(2)}€</b>
-          </div>
-        `).join('')}
+        <table class="detail-table">
+          <thead><tr><th>Produkt</th><th>Kat.</th><th style="text-align:right">Preis</th></tr></thead>
+          <tbody>
+            ${r.viewItems.map(i => `
+              <tr>
+                <td>${i.n}</td>
+                <td class="cat-cell">${i.c.split(' ')[0]}</td>
+                <td class="price">${i.p.toFixed(2)}€</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
       </div>
     </div>
-  `).join('') || '<p style="text-align:center">Keine Daten.</p>';
+  `).join('') || '<p style="text-align:center; color:var(--text-muted)">Keine Einträge gefunden.</p>';
 }
 
 /* Settings */
 const thmSelect = document.getElementById('thm');
 const desktopToggle = document.getElementById('desktopToggle');
-thmSelect.addEventListener('change', (e) => {
-  document.body.setAttribute('data-theme', e.target.value);
-  localStorage.setItem('theme', e.target.value);
-});
-desktopToggle.addEventListener('change', (e) => {
-  document.body.classList.toggle('desktop-mode', e.target.checked);
-  localStorage.setItem('desktopMode', e.target.checked);
-});
+thmSelect.addEventListener('change', (e) => { document.body.setAttribute('data-theme', e.target.value); localStorage.setItem('theme', e.target.value); });
+desktopToggle.addEventListener('change', (e) => { document.body.classList.toggle('desktop-mode', e.target.checked); localStorage.setItem('desktopMode', e.target.checked); });
 
-// Load
 const savedTheme = localStorage.getItem('theme');
 if(savedTheme) { document.body.setAttribute('data-theme', savedTheme); thmSelect.value = savedTheme; }
 const savedDesktop = localStorage.getItem('desktopMode') === 'true';
