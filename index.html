@@ -2,8 +2,8 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kassenbon OCR – Deluxe Themes</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Kassenbon Pro – Deluxe</title>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="https://js.puter.com/v2/"></script>
@@ -51,11 +51,7 @@
     .ai-box { background: var(--primary-light); border-left: 4px solid var(--primary); padding: 12px; margin-top: 10px; border-radius: 4px; font-size: 0.85rem; color: var(--text); }
 
     .file-label { display: block; padding: 30px; border: 2px dashed var(--primary); border-radius: var(--radius); text-align: center; color: var(--primary); cursor: pointer; font-weight: 600; }
-    
     select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); margin-top: 5px; }
-    
-    .sort-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-    .sort-container select { width: auto; margin-top: 0; font-size: 0.75rem; padding: 4px 8px; }
   </style>
 </head>
 <body>
@@ -75,7 +71,7 @@
         <h2>Bons einlesen</h2>
         <input type="file" id="imgInp" accept="image/*" style="display:none">
         <label for="imgInp" class="file-label">📸 Galerie öffnen</label>
-        <div id="status" style="font-size:0.8rem; margin-top:10px; color:var(--text-muted); text-align:center"></div>
+        <div id="status" style="font-size:0.8rem; margin-top:10px; color:var(--text-muted); text-align:center">Bereit</div>
       </div>
       <div class="card" id="lastResult">
         <h2>Letztes Ergebnis</h2>
@@ -88,35 +84,10 @@
         <button class="btn ai" id="aiBtn">✨ KI Spar-Analyse</button>
         <div id="aiRes"></div>
       </div>
-
-      <div class="card">
-        <div class="sort-container">
-            <h2 style="margin:0">Kategorien</h2>
-            <select id="sortDate" onchange="render()">
-                <option value="desc">Datum ↓ (Neu)</option>
-                <option value="asc">Datum ↑ (Alt)</option>
-            </select>
-        </div>
-        <div class="category-chips" id="catChips">
-          <div class="chip active" data-cat="ALL">Alle</div>
-          <div class="chip" data-cat="Obst & Gemüse">Obst & Gemüse</div>
-          <div class="chip" data-cat="Fleisch & Wurst">Fleisch & Wurst</div>
-          <div class="chip" data-cat="Backwaren">Backwaren</div>
-          <div class="chip" data-cat="Getränke">Getränke</div>
-          <div class="chip" data-cat="Milchprodukte">Milchprodukte</div>
-          <div class="chip" data-cat="Süßwaren">Süßwaren</div>
-          <div class="chip" data-cat="Haushalt">Haushalt</div>
-          <div class="chip" data-cat="Drogerie">Drogerie</div>
-          <div class="chip" data-cat="Tabak">Tabak</div>
-          <div class="chip" data-cat="Sonstiges">Sonstiges</div>
-        </div>
-      </div>
-
       <div class="card">
         <h2>Übersicht</h2>
         <div class="stats-grid" id="statGrid"></div>
       </div>
-
       <div class="card">
         <h2>Historie</h2>
         <div id="hist"></div>
@@ -126,21 +97,14 @@
     <section id="screen-settings" class="screen">
       <div class="card">
         <h2>Design & Themes</h2>
-        <label for="thm">Wähle deinen Stil:</label>
         <select id="thm">
-          <option value="default">🔵 Standard Blau</option>
+          <option value="default">🔵 Standard</option>
           <option value="dark">🌑 Dark Mode</option>
-          <option value="nature">🌿 Natur Grün</option>
-          <option value="berry">🍓 Beere Pink</option>
-          <option value="ocean">🌊 Ozean Türkis</option>
-          <option value="sunset">🌇 Sunset Orange</option>
-          <option value="gold">✨ Gold Edition</option>
+          <option value="nature">🌿 Natur</option>
+          <option value="berry">🍓 Beere</option>
         </select>
       </div>
-      <div class="card">
-        <h2>Datenverwaltung</h2>
-        <button class="btn" style="background:var(--danger)" onclick="if(confirm('Wirklich alle Daten löschen?')){localStorage.clear();location.reload()}">Alle Daten löschen</button>
-      </div>
+      <button class="btn" style="background:var(--danger)" onclick="localStorage.clear();location.reload()">Daten löschen</button>
     </section>
   </main>
 </div>
@@ -148,128 +112,88 @@
 <script>
 const DB_KEY = 'receipts_v4_themed';
 
-// Puter Konfiguration für App-Umgebung
-if(typeof puter !== 'undefined'){
-    puter.ui.useSettings({
-        appName: "Kassenbon Pro",
-        forcePopup: false
+// --- INITIALISIERUNG ---
+window.onload = () => {
+    // 1. Navigation initialisieren (Muss zuerst kommen!)
+    initNavigation();
+    
+    // 2. Puter vorsichtig laden
+    if(typeof puter !== 'undefined' && puter.ui) {
+        try {
+            // Falls useSettings existiert, nutzen wir es, sonst ignorieren wir es
+            if(typeof puter.ui.useSettings === 'function') {
+                puter.ui.useSettings({ appName: "Kassenbon Pro", forcePopup: false });
+            }
+        } catch(e) { console.error("Puter UI Error", e); }
+    }
+    
+    render();
+};
+
+function initNavigation() {
+    document.querySelectorAll('.tab').forEach(t => {
+        t.onclick = () => {
+            document.querySelectorAll('.tab, .screen').forEach(el => el.classList.remove('active'));
+            t.classList.add('active');
+            document.getElementById('screen-' + t.dataset.screen).classList.add('active');
+            if(t.dataset.screen === 'stats') render();
+        };
     });
 }
 
-/* Navigation */
-document.querySelectorAll('.tab').forEach(t => {
-  t.addEventListener('click', () => {
-    document.querySelectorAll('.tab, .screen').forEach(el => el.classList.remove('active'));
-    t.classList.add('active');
-    document.getElementById('screen-' + t.dataset.screen).classList.add('active');
-    if(t.dataset.screen === 'stats') render();
-  });
-});
-
 /* OCR & Processing */
-document.getElementById('imgInp').addEventListener('change', async (e) => {
+document.getElementById('imgInp').onchange = async (e) => {
   const file = e.target.files[0];
   if(!file) return;
   const status = document.getElementById('status');
-  status.textContent = `Analysiere... Bitte warten.`;
+  status.textContent = `Analysiere...`;
   
   try {
     const worker = await Tesseract.createWorker("deu");
     const { data } = await worker.recognize(file);
     await worker.terminate();
 
-    const prompt = `Analysiere Bon: Extrahiere Ladenname, Summe und Artikel mit Kategorien (Obst & Gemüse, Fleisch & Wurst, Backwaren, Getränke, Milchprodukte, Süßwaren, Haushalt, Drogerie, Tabak, Sonstiges). 
-    Antworte NUR als JSON: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`;
+    status.textContent = "KI wird befragt...";
+    const prompt = `Analysiere diesen Kassenbon-Text. Gib NUR ein JSON zurück: {"shop":"Name","total":0.00,"items":[]}. Text: ${data.text}`;
     
     const res = await puter.ai.chat(prompt);
-    const json = JSON.parse(res.message.content.match(/\{.*\}/s)[0]);
-    const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+    const cleanContent = res.message.content.match(/\{.*\}/s)[0];
+    const json = JSON.parse(cleanContent);
     
-    // Speichern mit ISO-Zeitstempel für präzise Sortierung
+    const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
     db.push({...json, date: new Date().toISOString()});
     localStorage.setItem(DB_KEY, JSON.stringify(db));
     
     document.getElementById('out').innerHTML = `✅ <b>${json.shop}</b>: ${json.total.toFixed(2)}€`;
-    status.textContent = "Erfolgreich eingelesen!";
-  } catch(err) {
-    console.error(err);
-    document.getElementById('out').textContent = "Fehler bei der KI-Analyse.";
-    status.textContent = "Fehler.";
-  }
-});
-
-/* KI Spar-Check */
-document.getElementById('aiBtn').addEventListener('click', async () => {
-  const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-  if(!db.length) return alert("Scanne zuerst einen Bon!");
-  const summary = db.slice(-5).map(r => `${r.shop}: ${r.total}€`).join(', ');
-  const res = await puter.ai.chat(`Einkaufsdaten: ${summary}. Erstelle 3 kurze Spar-Tipps auf Deutsch.`);
-  document.getElementById('aiRes').innerHTML = `<div class="ai-box"><b>KI Vorschläge:</b><br>${res.message.content.replace(/\n/g,'<br>')}</div>`;
-});
-
-let currentCat = "ALL";
-document.getElementById('catChips').addEventListener('click', (e) => {
-  const chip = e.target.closest('.chip');
-  if(chip) {
-    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-    chip.classList.add('active');
-    currentCat = chip.dataset.cat;
+    status.textContent = "Erfolg!";
     render();
+  } catch(err) {
+    status.textContent = "Fehler!";
+    console.error(err);
   }
-});
+};
 
 function render() {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-  const sortDir = document.getElementById('sortDate').value;
-  let filtered = [];
+  const total = db.reduce((s, r) => s + (r.total || 0), 0);
+  
+  const grid = document.getElementById('statGrid');
+  if(grid) grid.innerHTML = `
+    <div class="stat"><span class="stat-val">${total.toFixed(2)}€</span>Gesamt</div>
+    <div class="stat"><span class="stat-val">${db.length}</span>Bons</div>`;
 
-  // Filtern & Kategorie-Summen berechnen
-  db.forEach(r => {
-      let displayTotal = 0;
-      if(currentCat === "ALL") {
-          displayTotal = r.total;
-      } else {
-          const catItems = r.items.filter(i => i.c === currentCat);
-          displayTotal = catItems.reduce((s, i) => s + i.p, 0);
-      }
-      
-      if(displayTotal > 0) {
-          filtered.push({...r, displayTotal: displayTotal});
-      }
-  });
-
-  // DATUMS SORTIERUNG
-  filtered.sort((a, b) => {
-    const dateA = new Date(a.date || 0);
-    const dateB = new Date(b.date || 0);
-    return sortDir === 'desc' ? dateB - dateA : dateA - dateB;
-  });
-
-  const totalSum = filtered.reduce((s, r) => s + r.displayTotal, 0);
-  document.getElementById('statGrid').innerHTML = `
-    <div class="stat"><span class="stat-val">${totalSum.toFixed(2)}€</span>Gesamt</div>
-    <div class="stat"><span class="stat-val">${filtered.length}</span>Bons</div>
-  `;
-
-  document.getElementById('hist').innerHTML = filtered.map(r => `
+  const hist = document.getElementById('hist');
+  if(hist) hist.innerHTML = db.map(r => `
     <div class="receipt-item">
       <span><b>${r.shop}</b><br><small>${new Date(r.date).toLocaleDateString()}</small></span>
-      <span>${r.displayTotal.toFixed(2)}€</span>
-    </div>
-  `).join('') || '<p style="text-align:center;color:var(--text-muted)">Keine Einträge gefunden.</p>';
+      <span>${(r.total || 0).toFixed(2)}€</span>
+    </div>`).join('') || 'Noch keine Daten.';
 }
 
-/* Theme Manager */
-const thmSelect = document.getElementById('thm');
-thmSelect.addEventListener('change', (e) => {
-  document.body.setAttribute('data-theme', e.target.value);
-  localStorage.setItem('receipt_theme', e.target.value);
-});
-const savedTheme = localStorage.getItem('receipt_theme');
-if(savedTheme) { document.body.setAttribute('data-theme', savedTheme); thmSelect.value = savedTheme; }
-
-// Initialer Render
-render();
+// Theme Manager
+document.getElementById('thm').onchange = (e) => {
+    document.body.setAttribute('data-theme', e.target.value);
+};
 </script>
 </body>
 </html>
