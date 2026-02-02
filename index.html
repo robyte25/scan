@@ -2,17 +2,18 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Kassenbon Pro – Deluxe</title>
+  <title>Kassenbon Pro – Budget & Inflation</title>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="https://js.puter.com/v2/"></script>
 
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
   <style>
-    /* --- THEME DEFINITIONEN --- */
     :root {
       --primary: #2563eb; --primary-light: #dbeafe; --bg: #f3f4f6; --card: #ffffff;
-      --text: #111827; --text-muted: #6b7280; --border: #e5e7eb; --danger: #dc2626; --radius: 12px;
+      --text: #111827; --text-muted: #6b7280; --border: #e5e7eb; --danger: #dc2626; --warning: #f59e0b; --success: #10b981; --radius: 12px;
+      --app-width: 480px;
     }
     [data-theme="dark"] { --primary: #60a5fa; --primary-light: #1e3a8a; --bg: #111827; --card: #1f2937; --text: #f9fafb; --text-muted: #9ca3af; --border: #374151; }
     [data-theme="nature"] { --primary: #059669; --primary-light: #d1fae5; --bg: #f0fdf4; --card: #ffffff; --text: #064e3b; --border: #bcf0da; }
@@ -21,11 +22,15 @@
     [data-theme="sunset"] { --primary: #ea580c; --primary-light: #ffedd5; --bg: #fff7ed; --card: #ffffff; --text: #7c2d12; --border: #fed7aa; }
     [data-theme="gold"] { --primary: #854d0e; --primary-light: #fef9c3; --bg: #fefce8; --card: #ffffff; --text: #422006; --border: #fef08a; }
 
-    * { box-sizing: border-box; transition: all 0.2s ease; }
+    body.desktop-mode { --app-width: 1000px; }
+
+    * { box-sizing: border-box; transition: all 0.2s ease; -webkit-tap-highlight-color: transparent; }
+    button, .tab, .chip, .receipt-item, label { outline: none !important; }
+
     body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; }
-    .app { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+    .app { max-width: var(--app-width); margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
     
-    header { padding: 16px; background: var(--card); box-shadow: 0 1px 4px rgba(0,0,0,0.06); position: sticky; top: 0; z-index: 10; }
+    header { padding: 16px; background: var(--card); box-shadow: 0 1px 4px rgba(0,0,0,0.06); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--border); }
     .tabs { display: flex; margin-top: 12px; background: var(--bg); border-radius: 999px; padding: 4px; border: 1px solid var(--border); }
     .tab { flex: 1; text-align: center; padding: 8px 4px; font-size: 0.85rem; border-radius: 999px; cursor: pointer; color: var(--text-muted); }
     .tab.active { background: var(--primary); color: #fff; font-weight: 600; }
@@ -33,25 +38,45 @@
     main { flex: 1; padding: 12px; padding-bottom: 72px; }
     .screen { display: none; }
     .screen.active { display: block; }
-    .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
     
+    body.desktop-mode .stats-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+    
+    .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); }
     .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 12px; border-radius: var(--radius); border: none; background: var(--primary); color: #fff; font-size: 0.95rem; font-weight: 600; cursor: pointer; margin-top: 10px; }
     .btn.ai { background: linear-gradient(135deg, var(--primary), #a855f7); }
     
+    /* Budget Progress Bar */
+    .budget-wrap { margin-top: 10px; }
+    .progress-bg { background: var(--border); height: 10px; border-radius: 5px; overflow: hidden; margin-top: 5px; }
+    .progress-fill { background: var(--success); height: 100%; width: 0%; transition: width 0.5s ease, background 0.5s ease; }
+    .progress-fill.warning { background: var(--warning); }
+    .progress-fill.danger { background: var(--danger); }
+
     .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
     .stat { background: var(--primary-light); padding: 12px; border-radius: var(--radius); }
     .stat-val { display: block; font-weight: 800; color: var(--primary); font-size: 1.1rem; }
     
+    /* Alerts */
+    .alert-card { border-left: 4px solid var(--warning); background: #fffbeb; padding: 12px; border-radius: 8px; margin-bottom: 10px; font-size: 0.85rem; }
+    .inflation-card { border-left: 4px solid var(--danger); background: #fef2f2; padding: 12px; border-radius: 8px; margin-bottom: 10px; font-size: 0.85rem; }
+    .ai-box { background: var(--primary-light); border-left: 4px solid var(--primary); padding: 15px; margin-top: 10px; border-radius: 8px; font-size: 0.9rem; color: var(--text); line-height: 1.5; }
+
     .category-chips { display: flex; gap: 6px; overflow-x: auto; padding: 10px 0; scrollbar-width: none; }
-    .category-chips::-webkit-scrollbar { display: none; }
     .chip { flex-shrink: 0; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); font-size: 0.75rem; background: var(--card); cursor: pointer; color: var(--text); }
     .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
 
-    .receipt-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
-    .ai-box { background: var(--primary-light); border-left: 4px solid var(--primary); padding: 12px; margin-top: 10px; border-radius: 4px; font-size: 0.85rem; color: var(--text); }
-
+    .receipt-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .receipt-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+    .receipt-details { display: none; margin-top: 10px; background: var(--bg); padding: 12px; border-radius: 8px; }
+    .receipt-details.open { display: block; }
+    
+    .detail-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .detail-table td { padding: 6px 0; border-bottom: 1px dotted var(--border); }
+    .del-btn { color: var(--danger); font-size: 0.75rem; background: none; border: none; padding: 8px 0; cursor: pointer; font-weight: 600; }
     .file-label { display: block; padding: 30px; border: 2px dashed var(--primary); border-radius: var(--radius); text-align: center; color: var(--primary); cursor: pointer; font-weight: 600; }
-    select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); margin-top: 5px; }
+    
+    input[type="number"], select, .toggle-row { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); margin-top: 5px; }
+    .toggle-row { display: flex; justify-content: space-between; align-items: center; }
   </style>
 </head>
 <body>
@@ -69,131 +94,243 @@
     <section id="screen-scan" class="screen active">
       <div class="card">
         <h2>Bons einlesen</h2>
-        <input type="file" id="imgInp" accept="image/*" style="display:none">
-        <label for="imgInp" class="file-label">📸 Galerie öffnen</label>
-        <div id="status" style="font-size:0.8rem; margin-top:10px; color:var(--text-muted); text-align:center">Bereit</div>
+        <input type="file" id="imgInp" accept="image/*" multiple style="display:none">
+        <label for="imgInp" class="file-label">📸 Tippen zum Scannen</label>
+        <div id="status" style="font-size:0.8rem; margin-top:10px; color:var(--text-muted); text-align:center"></div>
       </div>
-      <div class="card" id="lastResult">
-        <h2>Letztes Ergebnis</h2>
-        <div id="out" style="font-size:0.85rem; color:var(--text-muted)">Noch kein Scan vorhanden.</div>
-      </div>
+      <div id="latest-scan-container"></div>
     </section>
 
     <section id="screen-stats" class="screen">
-      <div class="card">
-        <button class="btn ai" id="aiBtn">✨ KI Spar-Analyse</button>
-        <div id="aiRes"></div>
-      </div>
-      <div class="card">
-        <h2>Übersicht</h2>
-        <div class="stats-grid" id="statGrid"></div>
-      </div>
-      <div class="card">
-        <h2>Historie</h2>
-        <div id="hist"></div>
+      <div class="stats-container">
+        <div class="left-col">
+          <div id="budget-card-container"></div>
+          <div id="inflation-container"></div>
+          <div id="price-watchdog-container"></div>
+          <div class="card">
+            <button class="btn ai" id="aiBtn">✨ KI Spar-Analyse</button>
+            <div id="aiRes"></div>
+          </div>
+        </div>
+        <div class="right-col">
+          <div class="card">
+            <h2>Filter</h2>
+            <div class="category-chips" id="catChips">
+              <div class="chip active" data-cat="ALL">Alle</div>
+              <div class="chip" data-cat="Obst & Gemüse">Obst & Gemüse</div>
+              <div class="chip" data-cat="Fleisch & Wurst">Fleisch & Wurst</div>
+              <div class="chip" data-cat="Backwaren">Backwaren</div>
+              <div class="chip" data-cat="Getränke">Getränke</div>
+              <div class="chip" data-cat="Milchprodukte">Milchprodukte</div>
+              <div class="chip" data-cat="Süßwaren">Süßwaren</div>
+              <div class="chip" data-cat="Haushalt">Haushalt</div>
+              <div class="chip" data-cat="Drogerie">Drogerie</div>
+              <div class="chip" data-cat="Tabak">Tabak</div>
+              <div class="chip" data-cat="Sonstiges">Sonstiges</div>
+            </div>
+            <div class="stats-grid" id="statGrid"></div>
+          </div>
+          <div class="card">
+            <h2>Historie</h2>
+            <div id="hist"></div>
+          </div>
+        </div>
       </div>
     </section>
 
     <section id="screen-settings" class="screen">
       <div class="card">
-        <h2>Design & Themes</h2>
+        <h2>Budget Planung</h2>
+        <label>Monatliches Limit (€):</label>
+        <input type="number" id="budgetInput" placeholder="z.B. 400">
+      </div>
+      <div class="card">
+        <h2>Ansicht & Design</h2>
+        <div class="toggle-row">
+          <span>Desktop-Optimierung</span>
+          <input type="checkbox" id="desktopToggle">
+        </div>
+        <br>
+        <label for="thm">Farbschema:</label>
         <select id="thm">
-          <option value="default">🔵 Standard</option>
+          <option value="default">🔵 Standard Blau</option>
           <option value="dark">🌑 Dark Mode</option>
-          <option value="nature">🌿 Natur</option>
-          <option value="berry">🍓 Beere</option>
+          <option value="nature">🌿 Natur Grün</option>
+          <option value="berry">🍓 Beere Pink</option>
+          <option value="ocean">🌊 Ozean Türkis</option>
+          <option value="sunset">🌇 Sunset Orange</option>
+          <option value="gold">✨ Gold Edition</option>
         </select>
       </div>
-      <button class="btn" style="background:var(--danger)" onclick="localStorage.clear();location.reload()">Daten löschen</button>
+      <div class="card">
+        <h2>Daten</h2>
+        <button class="btn" style="background:var(--danger)" onclick="if(confirm('Alles löschen?')){localStorage.clear();location.reload()}">Alle Daten löschen</button>
+      </div>
     </section>
   </main>
 </div>
 
 <script>
-const DB_KEY = 'receipts_v4_themed';
+const DB_KEY = 'receipts_v11_budget';
 
-// --- INITIALISIERUNG ---
-window.onload = () => {
-    // 1. Navigation initialisieren (Muss zuerst kommen!)
-    initNavigation();
-    
-    // 2. Puter vorsichtig laden
-    if(typeof puter !== 'undefined' && puter.ui) {
-        try {
-            // Falls useSettings existiert, nutzen wir es, sonst ignorieren wir es
-            if(typeof puter.ui.useSettings === 'function') {
-                puter.ui.useSettings({ appName: "Kassenbon Pro", forcePopup: false });
-            }
-        } catch(e) { console.error("Puter UI Error", e); }
-    }
-    
-    render();
-};
-
-function initNavigation() {
-    document.querySelectorAll('.tab').forEach(t => {
-        t.onclick = () => {
-            document.querySelectorAll('.tab, .screen').forEach(el => el.classList.remove('active'));
-            t.classList.add('active');
-            document.getElementById('screen-' + t.dataset.screen).classList.add('active');
-            if(t.dataset.screen === 'stats') render();
-        };
-    });
+// FIXED: Puter Configuration
+if (typeof puter !== 'undefined' && puter.ui && typeof puter.ui.useSettings === 'function') {
+  puter.ui.useSettings({
+    appName: "Kassenbon Pro",
+    forcePopup: false
+  });
 }
 
-/* OCR & Processing */
-document.getElementById('imgInp').onchange = async (e) => {
-  const file = e.target.files[0];
-  if(!file) return;
+/* Navigation */
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab, .screen').forEach(el => el.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('screen-' + t.dataset.screen).classList.add('active');
+    if(t.dataset.screen === 'stats') render();
+  });
+});
+
+/* OCR */
+document.getElementById('imgInp').addEventListener('change', async (e) => {
   const status = document.getElementById('status');
-  status.textContent = `Analysiere...`;
-  
-  try {
+  for(let file of e.target.files) {
+    status.textContent = `Scanne...`;
     const worker = await Tesseract.createWorker("deu");
     const { data } = await worker.recognize(file);
     await worker.terminate();
-
-    status.textContent = "KI wird befragt...";
-    const prompt = `Analysiere diesen Kassenbon-Text. Gib NUR ein JSON zurück: {"shop":"Name","total":0.00,"items":[]}. Text: ${data.text}`;
-    
-    const res = await puter.ai.chat(prompt);
-    const cleanContent = res.message.content.match(/\{.*\}/s)[0];
-    const json = JSON.parse(cleanContent);
-    
-    const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-    db.push({...json, date: new Date().toISOString()});
-    localStorage.setItem(DB_KEY, JSON.stringify(db));
-    
-    document.getElementById('out').innerHTML = `✅ <b>${json.shop}</b>: ${json.total.toFixed(2)}€`;
-    status.textContent = "Erfolg!";
-    render();
-  } catch(err) {
-    status.textContent = "Fehler!";
-    console.error(err);
+    try {
+      const res = await puter.ai.chat(`Analysiere Bon: Shop, Summe, Artikel+Kategorie. Antworte NUR JSON: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`);
+      const json = JSON.parse(res.message.content.match(/\{.*\}/s)[0]);
+      const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+      db.push({...json, date: new Date().toLocaleDateString(), timestamp: Date.now(), id: Date.now()});
+      localStorage.setItem(DB_KEY, JSON.stringify(db));
+      document.getElementById('latest-scan-container').innerHTML = `<div class="card">✅ Erfasst: ${json.shop}</div>`;
+    } catch(err) { console.error(err); }
   }
-};
+  status.textContent = "Bereit.";
+});
+
+/* Inflations-Tracker Logik */
+function checkInflation(db) {
+  const productHistory = {};
+  // Sortiere nach Zeit (alt nach neu)
+  db.sort((a,b) => (a.timestamp || 0) - (b.timestamp || 0)).forEach(r => {
+    r.items.forEach(i => {
+      const name = i.n.toUpperCase().trim();
+      if(!productHistory[name]) productHistory[name] = [];
+      productHistory[name].push({ p: i.p, d: r.date });
+    });
+  });
+
+  let html = "";
+  for(const name in productHistory) {
+    const history = productHistory[name];
+    if(history.length > 1) {
+      const last = history[history.length - 1];
+      const prev = history[history.length - 2];
+      if(last.p > prev.p) {
+        const diff = ((last.p - prev.p) / prev.p * 100).toFixed(0);
+        html += `<div class="inflation-card">📈 <b>Teuerungs-Alarm: ${name}</b><br>Von ${prev.p.toFixed(2)}€ auf ${last.p.toFixed(2)}€ (+${diff}%)</div>`;
+      }
+    }
+  }
+  document.getElementById('inflation-container').innerHTML = html ? `<h2>Inflation-Check</h2>${html}` : "";
+}
+
+/* Budget Logik */
+function renderBudget(currentSum) {
+  const limit = parseFloat(localStorage.getItem('monthly_budget') || 0);
+  if(limit <= 0) return;
+  
+  const percent = Math.min((currentSum / limit) * 100, 100);
+  let statusClass = "";
+  if(percent > 90) statusClass = "danger";
+  else if(percent > 70) statusClass = "warning";
+
+  document.getElementById('budget-card-container').innerHTML = `
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; font-weight:bold">
+        <span>Monats-Budget</span>
+        <span>${currentSum.toFixed(2)} / ${limit}€</span>
+      </div>
+      <div class="progress-bg">
+        <div class="progress-fill ${statusClass}" style="width: ${percent}%"></div>
+      </div>
+    </div>
+  `;
+}
 
 function render() {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-  const total = db.reduce((s, r) => s + (r.total || 0), 0);
   
-  const grid = document.getElementById('statGrid');
-  if(grid) grid.innerHTML = `
-    <div class="stat"><span class="stat-val">${total.toFixed(2)}€</span>Gesamt</div>
-    <div class="stat"><span class="stat-val">${db.length}</span>Bons</div>`;
+  // Preis-Wachhund & Inflation
+  checkInflation(db);
+  
+  let filtered = db.map(r => {
+    const items = currentCat === "ALL" ? r.items : r.items.filter(i => i.c === currentCat);
+    return {...r, viewItems: items, viewTotal: items.reduce((s,i) => s + i.p, 0)};
+  }).filter(r => r.viewTotal > 0);
 
-  const hist = document.getElementById('hist');
-  if(hist) hist.innerHTML = db.map(r => `
+  const sum = filtered.reduce((s, r) => s + r.viewTotal, 0);
+  renderBudget(sum);
+
+  document.getElementById('statGrid').innerHTML = `<div class="stat"><span class="stat-val">${sum.toFixed(2)}€</span>Summe</div><div class="stat"><span class="stat-val">${filtered.length}</span>Bons</div>`;
+  document.getElementById('hist').innerHTML = filtered.reverse().map(r => `
     <div class="receipt-item">
-      <span><b>${r.shop}</b><br><small>${new Date(r.date).toLocaleDateString()}</small></span>
-      <span>${(r.total || 0).toFixed(2)}€</span>
-    </div>`).join('') || 'Noch keine Daten.';
+      <div class="receipt-header" onclick="document.getElementById('details-${r.id}').classList.toggle('open')">
+        <span><b>${r.shop}</b><br><small>${r.date}</small></span>
+        <span><b>${r.viewTotal.toFixed(2)}€</b> ▾</span>
+      </div>
+      <div class="receipt-details" id="details-${r.id}">
+        <table class="detail-table">${r.viewItems.map(i => `<tr><td>${i.n}</td><td style="text-align:right"><b>${i.p.toFixed(2)}€</b></td></tr>`).join('')}</table>
+        <button class="del-btn" onclick="deleteReceipt(${r.id})">🗑️ Entfernen</button>
+      </div>
+    </div>
+  `).join('');
 }
 
-// Theme Manager
-document.getElementById('thm').onchange = (e) => {
-    document.body.setAttribute('data-theme', e.target.value);
-};
+/* Settings Events */
+document.getElementById('budgetInput').addEventListener('input', (e) => {
+  localStorage.setItem('monthly_budget', e.target.value);
+  render();
+});
+document.getElementById('budgetInput').value = localStorage.getItem('monthly_budget');
+
+/* Standard Funktionen */
+let currentCat = "ALL";
+document.getElementById('catChips').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if(chip) {
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    currentCat = chip.dataset.cat;
+    render();
+  }
+});
+
+function deleteReceipt(id) {
+  if(confirm('Löschen?')) {
+    let db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+    localStorage.setItem(DB_KEY, JSON.stringify(db.filter(r => r.id !== id)));
+    render();
+  }
+}
+
+document.getElementById('aiBtn').addEventListener('click', async () => {
+  const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+  if(!db.length) return;
+  const res = await puter.ai.chat(`Spar-Tipps für DE basierend auf diesen Käufen:\n${db.slice(-5).map(r=>r.total+'€ bei '+r.shop).join('\n')}`);
+  document.getElementById('aiRes').innerHTML = `<div class="ai-box">${res.message.content.replace(/\n/g,'<br>')}</div>`;
+});
+
+const thmSelect = document.getElementById('thm');
+thmSelect.addEventListener('change', (e) => { document.body.setAttribute('data-theme', e.target.value); localStorage.setItem('theme', e.target.value); });
+const savedTheme = localStorage.getItem('theme');
+if(savedTheme) { document.body.setAttribute('data-theme', savedTheme); thmSelect.value = savedTheme; }
+
+// Initialer Aufruf
+render();
 </script>
 </body>
 </html>
