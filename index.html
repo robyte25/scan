@@ -68,7 +68,7 @@
     
     .detail-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
     .detail-table td { padding: 6px 0; border-bottom: 1px dotted var(--border); }
-    .item-cat { font-size: 0.7rem; color: var(--text-muted); display: block; }
+    .item-cat-label { font-size: 0.7rem; color: var(--primary); font-weight: 500; display: block; margin-top: 2px; }
     .del-btn { color: var(--danger); font-size: 0.75rem; background: none; border: none; padding: 8px 0; cursor: pointer; font-weight: 600; }
     .file-label { display: block; padding: 30px; border: 2px dashed var(--primary); border-radius: var(--radius); text-align: center; color: var(--primary); cursor: pointer; font-weight: 600; }
     
@@ -188,7 +188,9 @@
 const DB_KEY = 'receipts_v11_budget';
 let currentCat = "ALL";
 
-// Puter Fix
+// Verfügbare Kategorien für die KI
+const VALID_CATEGORIES = ["Obst & Gemüse", "Fleisch & Wurst", "Backwaren", "Getränke", "Milchprodukte", "Süßwaren", "Haushalt", "Drogerie", "Tabak", "Sonstiges"];
+
 if (typeof puter !== 'undefined' && puter.ui && typeof puter.ui.useSettings === 'function') {
   puter.ui.useSettings({ appName: "Kassenbon Pro", forcePopup: false });
 }
@@ -203,7 +205,6 @@ document.querySelectorAll('.tab').forEach(t => {
   });
 });
 
-/* Hilfsfunktion zur Datumskonvertierung */
 function normalizeDate(dateStr) {
     if (!dateStr) return "";
     if (dateStr.includes('.')) {
@@ -233,7 +234,14 @@ document.getElementById('imgInp').addEventListener('change', async (e) => {
     status.textContent = `KI Analyse...`;
     
     try {
-      const res = await puter.ai.chat(`Analysiere Bon: Shop, Summe, Artikel+Kategorie. Antworte NUR JSON: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`);
+      // PROMPT OPTIMIERT: KI erhält die Liste der erlaubten Kategorien
+      const prompt = `Analysiere diesen Kassenbon-Text. 
+      Extrahiere Shop, Gesamtsumme und alle Artikel.
+      WICHTIG: Ordne jedem Artikel EXAKT eine dieser Kategorien zu: ${VALID_CATEGORIES.join(", ")}.
+      Antworte NUR im JSON-Format: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}.
+      Text: ${data.text}`;
+
+      const res = await puter.ai.chat(prompt);
       const json = JSON.parse(res.message.content.match(/\{.*\}/s)[0]);
       const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
       db.push({...json, date: new Date().toISOString().split('T')[0], timestamp: Date.now(), id: Date.now()});
@@ -242,7 +250,7 @@ document.getElementById('imgInp').addEventListener('change', async (e) => {
       document.getElementById('latest-scan-container').innerHTML = `<div class="card">✅ Erfasst: ${json.shop}</div>`;
       setTimeout(() => { progCont.style.display = "none"; progFill.style.width = "0%"; }, 1000);
     } catch(err) { 
-        status.textContent = "Fehler.";
+        status.textContent = "Fehler bei Verarbeitung.";
         setTimeout(() => { progCont.style.display = "none"; }, 2000);
     }
   }
@@ -305,10 +313,15 @@ function render() {
 
   // 2. Kategorie Filter & Summen
   let finalFiltered = timeFiltered.map(r => {
-    // Hier ist der Fix für den Kategoriefilter
     const items = currentCat === "ALL" 
         ? r.items 
-        : r.items.filter(i => i.c && i.c.toLowerCase().trim() === currentCat.toLowerCase().trim());
+        : r.items.filter(i => {
+            if (!i.c) return false;
+            // Flexibler Vergleich (ignoriert &, Leerzeichen und Case)
+            const cleanI = i.c.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const cleanC = currentCat.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return cleanI === cleanC;
+        });
     
     const total = items.reduce((s,i) => s + (parseFloat(i.p) || 0), 0);
     return {...r, viewItems: items, viewTotal: total};
@@ -330,7 +343,10 @@ function render() {
       <div class="receipt-details" id="details-${r.id}">
         <table class="detail-table">${r.viewItems.map(i => `
             <tr>
-                <td><b>${i.n}</b><span class="item-cat">${i.c || 'Sonstiges'}</span></td>
+                <td style="padding: 8px 0;">
+                    <b>${i.n}</b>
+                    <span class="item-cat-label">${i.c || 'Sonstiges'}</span>
+                </td>
                 <td style="text-align:right"><b>${(parseFloat(i.p) || 0).toFixed(2)}€</b></td>
             </tr>`).join('')}
         </table>
@@ -366,7 +382,7 @@ function deleteReceipt(id) {
 document.getElementById('aiBtn').addEventListener('click', async () => {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
   if(!db.length) return;
-  const res = await puter.ai.chat(`Spar-Tipps für DE basierend auf diesen Käufen:\n${db.slice(-5).map(r=>r.total+'€ bei '+r.shop).join('\n')}`);
+  const res = await puter.ai.chat(`Gib mir kurze Spar-Tipps für Haushalt in DE basierend auf diesen Käufen:\n${db.slice(-5).map(r=>r.total+'€ bei '+r.shop).join('\n')}`);
   document.getElementById('aiRes').innerHTML = `<div class="ai-box">${res.message.content.replace(/\n/g,'<br>')}</div>`;
 });
 
