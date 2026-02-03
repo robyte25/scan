@@ -68,6 +68,7 @@
     
     .detail-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
     .detail-table td { padding: 6px 0; border-bottom: 1px dotted var(--border); }
+    .item-cat { font-size: 0.7rem; color: var(--text-muted); display: block; }
     .del-btn { color: var(--danger); font-size: 0.75rem; background: none; border: none; padding: 8px 0; cursor: pointer; font-weight: 600; }
     .file-label { display: block; padding: 30px; border: 2px dashed var(--primary); border-radius: var(--radius); text-align: center; color: var(--primary); cursor: pointer; font-weight: 600; }
     
@@ -110,7 +111,6 @@
         <div class="left-col">
           <div id="budget-card-container"></div>
           <div id="inflation-container"></div>
-          <div id="price-watchdog-container"></div>
           <div class="card">
             <button class="btn ai" id="aiBtn">✨ KI Spar-Analyse</button>
             <div id="aiRes"></div>
@@ -236,7 +236,6 @@ document.getElementById('imgInp').addEventListener('change', async (e) => {
       const res = await puter.ai.chat(`Analysiere Bon: Shop, Summe, Artikel+Kategorie. Antworte NUR JSON: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`);
       const json = JSON.parse(res.message.content.match(/\{.*\}/s)[0]);
       const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-      // Speichere im ISO Format für bessere Filterung
       db.push({...json, date: new Date().toISOString().split('T')[0], timestamp: Date.now(), id: Date.now()});
       localStorage.setItem(DB_KEY, JSON.stringify(db));
       progFill.style.width = "100%";
@@ -296,7 +295,7 @@ function render() {
   
   checkInflation(db);
   
-  // 1. Filtere nach Zeitraum
+  // 1. Zeitraum Filter
   let timeFiltered = db.filter(r => {
       const rDate = normalizeDate(r.date);
       if(dFrom && rDate < dFrom) return false;
@@ -304,10 +303,14 @@ function render() {
       return true;
   });
 
-  // 2. Filtere nach Kategorie und berechne Summen
+  // 2. Kategorie Filter & Summen
   let finalFiltered = timeFiltered.map(r => {
-    const items = currentCat === "ALL" ? r.items : r.items.filter(i => i.c === currentCat);
-    const total = items.reduce((s,i) => s + i.p, 0);
+    // Hier ist der Fix für den Kategoriefilter
+    const items = currentCat === "ALL" 
+        ? r.items 
+        : r.items.filter(i => i.c && i.c.toLowerCase().trim() === currentCat.toLowerCase().trim());
+    
+    const total = items.reduce((s,i) => s + (parseFloat(i.p) || 0), 0);
     return {...r, viewItems: items, viewTotal: total};
   }).filter(r => r.viewTotal > 0);
 
@@ -325,13 +328,18 @@ function render() {
         <span><b>${r.viewTotal.toFixed(2)}€</b> ▾</span>
       </div>
       <div class="receipt-details" id="details-${r.id}">
-        <table class="detail-table">${r.viewItems.map(i => `<tr><td>${i.n}</td><td style="text-align:right"><b>${i.p.toFixed(2)}€</b></td></tr>`).join('')}</table>
+        <table class="detail-table">${r.viewItems.map(i => `
+            <tr>
+                <td><b>${i.n}</b><span class="item-cat">${i.c || 'Sonstiges'}</span></td>
+                <td style="text-align:right"><b>${(parseFloat(i.p) || 0).toFixed(2)}€</b></td>
+            </tr>`).join('')}
+        </table>
         <button class="del-btn" onclick="deleteReceipt(${r.id})">🗑️ Entfernen</button>
       </div>
     </div>`).join('');
 }
 
-/* Filter & Settings Events */
+/* Events */
 document.getElementById('budgetInput').addEventListener('input', (e) => { localStorage.setItem('monthly_budget', e.target.value); render(); });
 document.getElementById('budgetInput').value = localStorage.getItem('monthly_budget');
 document.getElementById('dateFrom').addEventListener('change', render);
