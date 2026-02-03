@@ -45,8 +45,6 @@
     .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 12px; border-radius: var(--radius); border: none; background: var(--primary); color: #fff; font-size: 0.95rem; font-weight: 600; cursor: pointer; margin-top: 10px; }
     .btn.ai { background: linear-gradient(135deg, var(--primary), #a855f7); }
     
-    /* Budget Progress Bar */
-    .budget-wrap { margin-top: 10px; }
     .progress-bg { background: var(--border); height: 10px; border-radius: 5px; overflow: hidden; margin-top: 5px; }
     .progress-fill { background: var(--success); height: 100%; width: 0%; transition: width 0.5s ease, background 0.5s ease; }
     .progress-fill.warning { background: var(--warning); }
@@ -56,8 +54,6 @@
     .stat { background: var(--primary-light); padding: 12px; border-radius: var(--radius); }
     .stat-val { display: block; font-weight: 800; color: var(--primary); font-size: 1.1rem; }
     
-    /* Alerts */
-    .alert-card { border-left: 4px solid var(--warning); background: #fffbeb; padding: 12px; border-radius: 8px; margin-bottom: 10px; font-size: 0.85rem; }
     .inflation-card { border-left: 4px solid var(--danger); background: #fef2f2; padding: 12px; border-radius: 8px; margin-bottom: 10px; font-size: 0.85rem; }
     .ai-box { background: var(--primary-light); border-left: 4px solid var(--primary); padding: 15px; margin-top: 10px; border-radius: 8px; font-size: 0.9rem; color: var(--text); line-height: 1.5; }
 
@@ -75,8 +71,12 @@
     .del-btn { color: var(--danger); font-size: 0.75rem; background: none; border: none; padding: 8px 0; cursor: pointer; font-weight: 600; }
     .file-label { display: block; padding: 30px; border: 2px dashed var(--primary); border-radius: var(--radius); text-align: center; color: var(--primary); cursor: pointer; font-weight: 600; }
     
-    input[type="number"], select, .toggle-row { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); margin-top: 5px; }
+    input[type="number"], input[type="date"], select, .toggle-row { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); margin-top: 5px; }
     .toggle-row { display: flex; justify-content: space-between; align-items: center; }
+
+    #scan-progress-container { display: none; margin-top: 15px; }
+    .scan-bar-bg { background: var(--border); height: 8px; border-radius: 4px; overflow: hidden; }
+    .scan-bar-fill { background: var(--primary); height: 100%; width: 0%; transition: width 0.3s linear; }
   </style>
 </head>
 <body>
@@ -96,7 +96,11 @@
         <h2>Bons einlesen</h2>
         <input type="file" id="imgInp" accept="image/*" multiple style="display:none">
         <label for="imgInp" class="file-label">📸 Tippen zum Scannen</label>
-        <div id="status" style="font-size:0.8rem; margin-top:10px; color:var(--text-muted); text-align:center"></div>
+        
+        <div id="scan-progress-container">
+            <div id="status" style="font-size:0.8rem; margin-bottom:5px; color:var(--text-muted); text-align:center">Scanne...</div>
+            <div class="scan-bar-bg"><div id="scan-fill" class="scan-bar-fill"></div></div>
+        </div>
       </div>
       <div id="latest-scan-container"></div>
     </section>
@@ -115,6 +119,16 @@
         <div class="right-col">
           <div class="card">
             <h2>Filter</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
+                <div>
+                    <label style="font-size: 0.7rem; color: var(--text-muted)">Von:</label>
+                    <input type="date" id="dateFrom">
+                </div>
+                <div>
+                    <label style="font-size: 0.7rem; color: var(--text-muted)">Bis:</label>
+                    <input type="date" id="dateTo">
+                </div>
+            </div>
             <div class="category-chips" id="catChips">
               <div class="chip active" data-cat="ALL">Alle</div>
               <div class="chip" data-cat="Obst & Gemüse">Obst & Gemüse</div>
@@ -172,13 +186,11 @@
 
 <script>
 const DB_KEY = 'receipts_v11_budget';
+let currentCat = "ALL";
 
-// FIXED: Puter Configuration
+// Puter Fix
 if (typeof puter !== 'undefined' && puter.ui && typeof puter.ui.useSettings === 'function') {
-  puter.ui.useSettings({
-    appName: "Kassenbon Pro",
-    forcePopup: false
-  });
+  puter.ui.useSettings({ appName: "Kassenbon Pro", forcePopup: false });
 }
 
 /* Navigation */
@@ -191,30 +203,55 @@ document.querySelectorAll('.tab').forEach(t => {
   });
 });
 
-/* OCR */
+/* Hilfsfunktion zur Datumskonvertierung */
+function normalizeDate(dateStr) {
+    if (!dateStr) return "";
+    if (dateStr.includes('.')) {
+        const p = dateStr.split('.');
+        return `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+    }
+    return dateStr;
+}
+
+/* OCR Scan */
 document.getElementById('imgInp').addEventListener('change', async (e) => {
   const status = document.getElementById('status');
+  const progCont = document.getElementById('scan-progress-container');
+  const progFill = document.getElementById('scan-fill');
+  
   for(let file of e.target.files) {
-    status.textContent = `Scanne...`;
+    progCont.style.display = "block";
+    progFill.style.width = "10%";
+    status.textContent = `Bild laden...`;
+    
     const worker = await Tesseract.createWorker("deu");
+    progFill.style.width = "40%";
     const { data } = await worker.recognize(file);
     await worker.terminate();
+    
+    progFill.style.width = "70%";
+    status.textContent = `KI Analyse...`;
+    
     try {
       const res = await puter.ai.chat(`Analysiere Bon: Shop, Summe, Artikel+Kategorie. Antworte NUR JSON: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`);
       const json = JSON.parse(res.message.content.match(/\{.*\}/s)[0]);
       const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-      db.push({...json, date: new Date().toLocaleDateString(), timestamp: Date.now(), id: Date.now()});
+      // Speichere im ISO Format für bessere Filterung
+      db.push({...json, date: new Date().toISOString().split('T')[0], timestamp: Date.now(), id: Date.now()});
       localStorage.setItem(DB_KEY, JSON.stringify(db));
+      progFill.style.width = "100%";
       document.getElementById('latest-scan-container').innerHTML = `<div class="card">✅ Erfasst: ${json.shop}</div>`;
-    } catch(err) { console.error(err); }
+      setTimeout(() => { progCont.style.display = "none"; progFill.style.width = "0%"; }, 1000);
+    } catch(err) { 
+        status.textContent = "Fehler.";
+        setTimeout(() => { progCont.style.display = "none"; }, 2000);
+    }
   }
-  status.textContent = "Bereit.";
 });
 
-/* Inflations-Tracker Logik */
+/* Inflation */
 function checkInflation(db) {
   const productHistory = {};
-  // Sortiere nach Zeit (alt nach neu)
   db.sort((a,b) => (a.timestamp || 0) - (b.timestamp || 0)).forEach(r => {
     r.items.forEach(i => {
       const name = i.n.toUpperCase().trim();
@@ -231,52 +268,57 @@ function checkInflation(db) {
       const prev = history[history.length - 2];
       if(last.p > prev.p) {
         const diff = ((last.p - prev.p) / prev.p * 100).toFixed(0);
-        html += `<div class="inflation-card">📈 <b>Teuerungs-Alarm: ${name}</b><br>Von ${prev.p.toFixed(2)}€ auf ${last.p.toFixed(2)}€ (+${diff}%)</div>`;
+        html += `<div class="inflation-card">📈 <b>${name}</b>: +${diff}% (jetzt ${last.p.toFixed(2)}€)</div>`;
       }
     }
   }
-  document.getElementById('inflation-container').innerHTML = html ? `<h2>Inflation-Check</h2>${html}` : "";
+  document.getElementById('inflation-container').innerHTML = html ? `<h2>Inflation</h2>${html}` : "";
 }
 
-/* Budget Logik */
+/* Budget UI */
 function renderBudget(currentSum) {
   const limit = parseFloat(localStorage.getItem('monthly_budget') || 0);
-  if(limit <= 0) return;
-  
+  if(limit <= 0) { document.getElementById('budget-card-container').innerHTML = ""; return; }
   const percent = Math.min((currentSum / limit) * 100, 100);
-  let statusClass = "";
-  if(percent > 90) statusClass = "danger";
-  else if(percent > 70) statusClass = "warning";
-
+  let statusClass = percent > 90 ? "danger" : (percent > 70 ? "warning" : "");
   document.getElementById('budget-card-container').innerHTML = `
     <div class="card">
-      <div style="display:flex; justify-content:space-between; font-weight:bold">
-        <span>Monats-Budget</span>
-        <span>${currentSum.toFixed(2)} / ${limit}€</span>
-      </div>
-      <div class="progress-bg">
-        <div class="progress-fill ${statusClass}" style="width: ${percent}%"></div>
-      </div>
-    </div>
-  `;
+      <div style="display:flex; justify-content:space-between; font-weight:bold"><span>Budget</span><span>${currentSum.toFixed(2)} / ${limit}€</span></div>
+      <div class="progress-bg"><div class="progress-fill ${statusClass}" style="width: ${percent}%"></div></div>
+    </div>`;
 }
 
+/* Haupt-Render Funktion */
 function render() {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+  const dFrom = document.getElementById('dateFrom').value;
+  const dTo = document.getElementById('dateTo').value;
   
-  // Preis-Wachhund & Inflation
   checkInflation(db);
   
-  let filtered = db.map(r => {
+  // 1. Filtere nach Zeitraum
+  let timeFiltered = db.filter(r => {
+      const rDate = normalizeDate(r.date);
+      if(dFrom && rDate < dFrom) return false;
+      if(dTo && rDate > dTo) return false;
+      return true;
+  });
+
+  // 2. Filtere nach Kategorie und berechne Summen
+  let finalFiltered = timeFiltered.map(r => {
     const items = currentCat === "ALL" ? r.items : r.items.filter(i => i.c === currentCat);
-    return {...r, viewItems: items, viewTotal: items.reduce((s,i) => s + i.p, 0)};
+    const total = items.reduce((s,i) => s + i.p, 0);
+    return {...r, viewItems: items, viewTotal: total};
   }).filter(r => r.viewTotal > 0);
 
-  const sum = filtered.reduce((s, r) => s + r.viewTotal, 0);
-  renderBudget(sum);
+  const totalSum = finalFiltered.reduce((s, r) => s + r.viewTotal, 0);
+  renderBudget(totalSum);
 
-  document.getElementById('statGrid').innerHTML = `<div class="stat"><span class="stat-val">${sum.toFixed(2)}€</span>Summe</div><div class="stat"><span class="stat-val">${filtered.length}</span>Bons</div>`;
-  document.getElementById('hist').innerHTML = filtered.reverse().map(r => `
+  document.getElementById('statGrid').innerHTML = `
+    <div class="stat"><span class="stat-val">${totalSum.toFixed(2)}€</span>Summe</div>
+    <div class="stat"><span class="stat-val">${finalFiltered.length}</span>Bons</div>`;
+
+  document.getElementById('hist').innerHTML = finalFiltered.slice().reverse().map(r => `
     <div class="receipt-item">
       <div class="receipt-header" onclick="document.getElementById('details-${r.id}').classList.toggle('open')">
         <span><b>${r.shop}</b><br><small>${r.date}</small></span>
@@ -286,19 +328,15 @@ function render() {
         <table class="detail-table">${r.viewItems.map(i => `<tr><td>${i.n}</td><td style="text-align:right"><b>${i.p.toFixed(2)}€</b></td></tr>`).join('')}</table>
         <button class="del-btn" onclick="deleteReceipt(${r.id})">🗑️ Entfernen</button>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
-/* Settings Events */
-document.getElementById('budgetInput').addEventListener('input', (e) => {
-  localStorage.setItem('monthly_budget', e.target.value);
-  render();
-});
+/* Filter & Settings Events */
+document.getElementById('budgetInput').addEventListener('input', (e) => { localStorage.setItem('monthly_budget', e.target.value); render(); });
 document.getElementById('budgetInput').value = localStorage.getItem('monthly_budget');
+document.getElementById('dateFrom').addEventListener('change', render);
+document.getElementById('dateTo').addEventListener('change', render);
 
-/* Standard Funktionen */
-let currentCat = "ALL";
 document.getElementById('catChips').addEventListener('click', (e) => {
   const chip = e.target.closest('.chip');
   if(chip) {
@@ -329,7 +367,10 @@ thmSelect.addEventListener('change', (e) => { document.body.setAttribute('data-t
 const savedTheme = localStorage.getItem('theme');
 if(savedTheme) { document.body.setAttribute('data-theme', savedTheme); thmSelect.value = savedTheme; }
 
-// Initialer Aufruf
+document.getElementById('desktopToggle').addEventListener('change', (e) => {
+    document.body.classList.toggle('desktop-mode', e.target.checked);
+});
+
 render();
 </script>
 </body>
