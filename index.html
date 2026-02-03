@@ -186,14 +186,9 @@
 
 <script>
 const DB_KEY = 'receipts_v11_budget';
+const API_KEY = "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";
 let currentCat = "ALL";
-
-// Verfügbare Kategorien für die KI
 const VALID_CATEGORIES = ["Obst & Gemüse", "Fleisch & Wurst", "Backwaren", "Getränke", "Milchprodukte", "Süßwaren", "Haushalt", "Drogerie", "Tabak", "Sonstiges"];
-
-if (typeof puter !== 'undefined' && puter.ui && typeof puter.ui.useSettings === 'function') {
-  puter.ui.useSettings({ appName: "Kassenbon Pro", forcePopup: false });
-}
 
 /* Navigation */
 document.querySelectorAll('.tab').forEach(t => {
@@ -212,6 +207,26 @@ function normalizeDate(dateStr) {
         return `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
     }
     return dateStr;
+}
+
+/* Groq API Call Wrapper */
+async function callGroq(prompt) {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${API_KEY}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            model: "llama-3.3-70b-versatile",
+            messages: [{ role: "user", content: prompt }]
+        })
+    });
+    const data = await response.json();
+    if (data.choices && data.choices[0]) {
+        return data.choices[0].message.content;
+    }
+    throw new Error("Groq API Fehler");
 }
 
 /* OCR Scan */
@@ -234,15 +249,14 @@ document.getElementById('imgInp').addEventListener('change', async (e) => {
     status.textContent = `KI Analyse...`;
     
     try {
-      // PROMPT OPTIMIERT: KI erhält die Liste der erlaubten Kategorien
       const prompt = `Analysiere diesen Kassenbon-Text. 
       Extrahiere Shop, Gesamtsumme und alle Artikel.
       WICHTIG: Ordne jedem Artikel EXAKT eine dieser Kategorien zu: ${VALID_CATEGORIES.join(", ")}.
       Antworte NUR im JSON-Format: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}.
       Text: ${data.text}`;
 
-      const res = await puter.ai.chat(prompt);
-      const json = JSON.parse(res.message.content.match(/\{.*\}/s)[0]);
+      const aiResponse = await callGroq(prompt);
+      const json = JSON.parse(aiResponse.match(/\{.*\}/s)[0]);
       const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
       db.push({...json, date: new Date().toISOString().split('T')[0], timestamp: Date.now(), id: Date.now()});
       localStorage.setItem(DB_KEY, JSON.stringify(db));
@@ -303,7 +317,6 @@ function render() {
   
   checkInflation(db);
   
-  // 1. Zeitraum Filter
   let timeFiltered = db.filter(r => {
       const rDate = normalizeDate(r.date);
       if(dFrom && rDate < dFrom) return false;
@@ -311,13 +324,11 @@ function render() {
       return true;
   });
 
-  // 2. Kategorie Filter & Summen
   let finalFiltered = timeFiltered.map(r => {
     const items = currentCat === "ALL" 
         ? r.items 
         : r.items.filter(i => {
             if (!i.c) return false;
-            // Flexibler Vergleich (ignoriert &, Leerzeichen und Case)
             const cleanI = i.c.toLowerCase().replace(/[^a-z0-9]/g, '');
             const cleanC = currentCat.toLowerCase().replace(/[^a-z0-9]/g, '');
             return cleanI === cleanC;
@@ -382,8 +393,14 @@ function deleteReceipt(id) {
 document.getElementById('aiBtn').addEventListener('click', async () => {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
   if(!db.length) return;
-  const res = await puter.ai.chat(`Gib mir kurze Spar-Tipps für Haushalt in DE basierend auf diesen Käufen:\n${db.slice(-5).map(r=>r.total+'€ bei '+r.shop).join('\n')}`);
-  document.getElementById('aiRes').innerHTML = `<div class="ai-box">${res.message.content.replace(/\n/g,'<br>')}</div>`;
+  const aiRes = document.getElementById('aiRes');
+  aiRes.innerHTML = "Warte auf Antwort...";
+  try {
+      const res = await callGroq(`Gib mir kurze Spar-Tipps für Haushalt in DE basierend auf diesen Käufen:\n${db.slice(-5).map(r=>r.total+'€ bei '+r.shop).join('\n')}`);
+      aiRes.innerHTML = `<div class="ai-box">${res.replace(/\n/g,'<br>')}</div>`;
+  } catch(e) {
+      aiRes.innerHTML = "Fehler bei der Analyse.";
+  }
 });
 
 const thmSelect = document.getElementById('thm');
@@ -398,4 +415,4 @@ document.getElementById('desktopToggle').addEventListener('change', (e) => {
 render();
 </script>
 </body>
-</html>
+  </html>
