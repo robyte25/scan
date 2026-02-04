@@ -29,22 +29,22 @@
 
     body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; }
     .app { max-width: var(--app-width); margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
-    
+
     header { padding: 16px; background: var(--card); box-shadow: 0 1px 4px rgba(0,0,0,0.06); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--border); }
     .tabs { display: flex; margin-top: 12px; background: var(--bg); border-radius: 999px; padding: 4px; border: 1px solid var(--border); }
     .tab { flex: 1; text-align: center; padding: 8px 4px; font-size: 0.85rem; border-radius: 999px; cursor: pointer; color: var(--text-muted); }
     .tab.active { background: var(--primary); color: #fff; font-weight: 600; }
-    
+
     main { flex: 1; padding: 12px; padding-bottom: 72px; }
     .screen { display: none; }
     .screen.active { display: block; }
-    
+
     body.desktop-mode .stats-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
-    
+
     .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); }
     .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 12px; border-radius: var(--radius); border: none; background: var(--primary); color: #fff; font-size: 0.95rem; font-weight: 600; cursor: pointer; margin-top: 10px; }
     .btn.ai { background: linear-gradient(135deg, var(--primary), #a855f7); }
-    
+
     .progress-bg { background: var(--border); height: 10px; border-radius: 5px; overflow: hidden; margin-top: 5px; }
     .progress-fill { background: var(--success); height: 100%; width: 0%; transition: width 0.5s ease, background 0.5s ease; }
     .progress-fill.warning { background: var(--warning); }
@@ -53,7 +53,7 @@
     .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
     .stat { background: var(--primary-light); padding: 12px; border-radius: var(--radius); }
     .stat-val { display: block; font-weight: 800; color: var(--primary); font-size: 1.1rem; }
-    
+
     .inflation-card { border-left: 4px solid var(--danger); background: #fef2f2; padding: 12px; border-radius: 8px; margin-bottom: 10px; font-size: 0.85rem; }
     .ai-box { background: var(--primary-light); border-left: 4px solid var(--primary); padding: 15px; margin-top: 10px; border-radius: 8px; font-size: 0.9rem; color: var(--text); line-height: 1.5; }
 
@@ -65,19 +65,21 @@
     .receipt-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
     .receipt-details { display: none; margin-top: 10px; background: var(--bg); padding: 12px; border-radius: 8px; }
     .receipt-details.open { display: block; }
-    
+
     .detail-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
     .detail-table td { padding: 6px 0; border-bottom: 1px dotted var(--border); }
     .item-cat-label { font-size: 0.7rem; color: var(--primary); font-weight: 500; display: block; margin-top: 2px; }
     .del-btn { color: var(--danger); font-size: 0.75rem; background: none; border: none; padding: 8px 0; cursor: pointer; font-weight: 600; }
     .file-label { display: block; padding: 30px; border: 2px dashed var(--primary); border-radius: var(--radius); text-align: center; color: var(--primary); cursor: pointer; font-weight: 600; }
-    
-    input[type="number"], input[type="date"], select, .toggle-row { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); margin-top: 5px; }
+
+    input[type="number"], input[type="date"], input[type="text"], select, .toggle-row { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); margin-top: 5px; }
     .toggle-row { display: flex; justify-content: space-between; align-items: center; }
 
     #scan-progress-container { display: none; margin-top: 15px; }
     .scan-bar-bg { background: var(--border); height: 8px; border-radius: 4px; overflow: hidden; }
     .scan-bar-fill { background: var(--primary); height: 100%; width: 0%; transition: width 0.3s linear; }
+
+    .shop-chip-close { margin-left: 8px; color: var(--danger); cursor: pointer; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -97,7 +99,7 @@
         <h2>Bons einlesen</h2>
         <input type="file" id="imgInp" accept="image/*" multiple style="display:none">
         <label for="imgInp" class="file-label">📸 Tippen zum Scannen</label>
-        
+
         <div id="scan-progress-container">
             <div id="status" style="font-size:0.8rem; margin-bottom:5px; color:var(--text-muted); text-align:center">Scanne...</div>
             <div class="scan-bar-bg"><div id="scan-fill" class="scan-bar-fill"></div></div>
@@ -158,6 +160,17 @@
         <label>Monatliches Limit (€):</label>
         <input type="number" id="budgetInput" placeholder="z.B. 400">
       </div>
+
+      <div class="card">
+        <h2>Einkaufsläden verwalten</h2>
+        <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 10px;">Diese Namen werden der KI zur Korrektur beim Scan übergeben.</p>
+        <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+          <input type="text" id="newShopInput" placeholder="z.B. Kaufland" style="margin-top:0">
+          <button class="btn" id="addShopBtn" style="margin-top:0; width: auto; padding: 0 20px;">+</button>
+        </div>
+        <div id="shopChipsContainer" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+      </div>
+
       <div class="card">
         <h2>Ansicht & Design</h2>
         <div class="toggle-row">
@@ -186,9 +199,13 @@
 
 <script>
 const DB_KEY = 'receipts_v11_budget';
+const SHOPS_KEY = 'custom_shops_v1';
 const API_KEY = "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";
 let currentCat = "ALL";
 const VALID_CATEGORIES = ["Obst & Gemüse", "Fleisch & Wurst", "Backwaren", "Getränke", "Milchprodukte", "Süßwaren", "Haushalt", "Drogerie", "Tabak", "Sonstiges"];
+
+// Shop Whitelist
+let knownShops = JSON.parse(localStorage.getItem(SHOPS_KEY) || '["REWE", "Lidl", "Aldi", "Edeka", "Netto", "Penny", "Rossmann", "DM"]');
 
 /* Navigation */
 document.querySelectorAll('.tab').forEach(t => {
@@ -197,6 +214,7 @@ document.querySelectorAll('.tab').forEach(t => {
     t.classList.add('active');
     document.getElementById('screen-' + t.dataset.screen).classList.add('active');
     if(t.dataset.screen === 'stats') render();
+    if(t.dataset.screen === 'settings') renderShops();
   });
 });
 
@@ -234,25 +252,29 @@ document.getElementById('imgInp').addEventListener('change', async (e) => {
   const status = document.getElementById('status');
   const progCont = document.getElementById('scan-progress-container');
   const progFill = document.getElementById('scan-fill');
-  
+
   for(let file of e.target.files) {
     progCont.style.display = "block";
     progFill.style.width = "10%";
     status.textContent = `Bild laden...`;
-    
+
     const worker = await Tesseract.createWorker("deu");
     progFill.style.width = "40%";
     const { data } = await worker.recognize(file);
     await worker.terminate();
-    
+
     progFill.style.width = "70%";
     status.textContent = `KI Analyse...`;
-    
+
     try {
-      const prompt = `Analysiere diesen Kassenbon-Text. 
-      Extrahiere Shop, Gesamtsumme und alle Artikel.
-      WICHTIG: Ordne jedem Artikel EXAKT eine dieser Kategorien zu: ${VALID_CATEGORIES.join(", ")}.
-      Antworte NUR im JSON-Format: {"shop":"Name","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}.
+      const prompt = `Analysiere diesen Kassenbon-Text extrem genau:
+      1. KORREKTUR LADENNAME: Prüfe, ob der Shop-Name einem dieser bekannten Läden ähnelt: [${knownShops.join(", ")}]. Wenn ja, verwende EXAKT diesen Namen aus der Liste.
+      2. REINIGUNG ARTIKEL: Entferne Sonderzeichen (wie *, #, @), Scan-Fehler oder kryptische Kürzel. Korrigiere offensichtliche Tippfehler in den Artikelnamen.
+      3. KATEGORISIERUNG: Ordne jedem Artikel EXAKT eine dieser Kategorien zu: ${VALID_CATEGORIES.join(", ")}.
+      
+      Antworte AUSSCHLIESSLICH im JSON-Format: 
+      {"shop":"Gereinigter Ladenname","total":0.00,"items":[{"n":"Gereinigter Artikelname","p":0.00,"c":"Kategorie"}]}
+
       Text: ${data.text}`;
 
       const aiResponse = await callGroq(prompt);
@@ -269,6 +291,35 @@ document.getElementById('imgInp').addEventListener('change', async (e) => {
     }
   }
 });
+
+/* Shop Management */
+function renderShops() {
+  const container = document.getElementById('shopChipsContainer');
+  if(!container) return;
+  container.innerHTML = knownShops.map(shop => `
+    <div class="chip" style="display: flex; align-items: center;">
+      ${shop}
+      <span class="shop-chip-close" onclick="removeShop('${shop}')">×</span>
+    </div>
+  `).join('');
+}
+
+document.getElementById('addShopBtn').addEventListener('click', () => {
+  const input = document.getElementById('newShopInput');
+  const val = input.value.trim();
+  if (val && !knownShops.includes(val)) {
+    knownShops.push(val);
+    localStorage.setItem(SHOPS_KEY, JSON.stringify(knownShops));
+    input.value = '';
+    renderShops();
+  }
+});
+
+window.removeShop = function(shop) {
+  knownShops = knownShops.filter(s => s !== shop);
+  localStorage.setItem(SHOPS_KEY, JSON.stringify(knownShops));
+  renderShops();
+}
 
 /* Inflation */
 function checkInflation(db) {
@@ -314,9 +365,9 @@ function render() {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
   const dFrom = document.getElementById('dateFrom').value;
   const dTo = document.getElementById('dateTo').value;
-  
+
   checkInflation(db);
-  
+
   let timeFiltered = db.filter(r => {
       const rDate = normalizeDate(r.date);
       if(dFrom && rDate < dFrom) return false;
@@ -333,7 +384,7 @@ function render() {
             const cleanC = currentCat.toLowerCase().replace(/[^a-z0-9]/g, '');
             return cleanI === cleanC;
         });
-    
+
     const total = items.reduce((s,i) => s + (parseFloat(i.p) || 0), 0);
     return {...r, viewItems: items, viewTotal: total};
   }).filter(r => r.viewTotal > 0);
@@ -412,7 +463,9 @@ document.getElementById('desktopToggle').addEventListener('change', (e) => {
     document.body.classList.toggle('desktop-mode', e.target.checked);
 });
 
+// Init
 render();
+renderShops();
 </script>
 </body>
-  </html>
+</html>
