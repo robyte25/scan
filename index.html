@@ -23,7 +23,7 @@
     .app { max-width: var(--app-width); margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
 
     header { padding: 16px; background: var(--card); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; text-align: center; }
-    .sync-status { font-size: 0.75rem; margin-top: 5px; color: var(--primary); font-weight: bold; }
+    .sync-status { font-size: 0.75rem; margin-top: 5px; color: var(--primary); font-weight: bold; word-break: break-all; padding: 0 10px; }
     
     .tabs { display: flex; margin-top: 12px; background: var(--bg); border-radius: 999px; padding: 4px; border: 1px solid var(--border); }
     .tab { flex: 1; text-align: center; padding: 10px; font-size: 0.85rem; border-radius: 999px; cursor: pointer; color: var(--text-muted); }
@@ -52,7 +52,7 @@
 <div class="app">
   <header>
     <h1 style="margin:0; font-size: 1.4rem;">Kassenbon Pro</h1>
-    <div id="sync-info" class="sync-status">Lokaler Modus (Kein Sync)</div>
+    <div id="sync-info" class="sync-status">Initialisiere...</div>
     <div class="tabs">
       <div class="tab active" data-screen="scan">Scan</div>
       <div class="tab" data-screen="settings">Optionen</div>
@@ -67,7 +67,7 @@
         <label for="imgInp" class="file-label">📸 Foto aufnehmen / wählen</label>
         
         <div id="scan-progress-container">
-            <div id="status" style="font-size:0.9rem; margin-bottom:8px; text-align:center; color: var(--primary);">Initialisiere...</div>
+            <div id="status" style="font-size:0.9rem; margin-bottom:8px; text-align:center; color: var(--primary);">Lese Text...</div>
             <div class="scan-bar-bg"><div id="scan-fill" class="scan-bar-fill"></div></div>
         </div>
       </div>
@@ -81,7 +81,7 @@
           <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" width="20" alt="G"> Mit Google anmelden
         </button>
         <p style="font-size:0.75rem; color:var(--text-muted); text-align:center; margin-top:10px;">
-          Deine Daten werden in einem privaten App-Ordner auf deinem Google Drive gesichert.
+          Daten werden im AppData-Ordner gesichert.
         </p>
       </div>
 
@@ -98,7 +98,6 @@
 </div>
 
 <script>
-/* KONFIGURATION MIT DEINER ID */
 const CLIENT_ID = '874809033702-5n2klkcs50hs8ugamgqvq8irfjfare3g.apps.googleusercontent.com';
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
 const SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
@@ -112,12 +111,16 @@ let tokenClient;
 let gapiInited = false;
 let gisInited = false;
 
-// Google API Initialisierung
 function gapiLoaded() { 
   gapi.load('client', async () => { 
-    await gapi.client.init({ discoveryDocs: [DISCOVERY_DOC] }); 
-    gapiInited = true; 
-    checkAuth(); 
+    try {
+      await gapi.client.init({ discoveryDocs: [DISCOVERY_DOC] }); 
+      gapiInited = true; 
+      document.getElementById('sync-info').textContent = "Google API bereit";
+      checkAuth(); 
+    } catch (e) {
+      document.getElementById('sync-info').textContent = "GAPI Init Fehler: " + e.message;
+    }
   }); 
 }
 
@@ -125,7 +128,14 @@ function gisLoaded() {
   tokenClient = google.accounts.oauth2.initTokenClient({ 
     client_id: CLIENT_ID, 
     scope: SCOPES, 
-    callback: '' 
+    callback: async (resp) => {
+      if (resp.error) {
+        document.getElementById('sync-info').textContent = "Auth Fehler: " + resp.error;
+        return;
+      }
+      localStorage.setItem('google_token', resp.access_token);
+      await syncWithCloud('download');
+    }
   }); 
   gisInited = true; 
 }
@@ -139,19 +149,17 @@ async function checkAuth() {
 }
 
 document.getElementById('googleLoginBtn').onclick = () => {
-    tokenClient.callback = async (resp) => {
-        if (resp.error) return;
-        localStorage.setItem('google_token', resp.access_token);
-        syncWithCloud('download');
-    };
+    if (!tokenClient) {
+        document.getElementById('sync-info').textContent = "Warte auf Google SDK...";
+        return;
+    }
     tokenClient.requestAccessToken({prompt: 'consent'});
 };
 
-// Cloud Synchronisierung
 async function syncWithCloud(mode = 'upload') {
     if (!gapiInited || !gapi.client.getToken()) return;
     const info = document.getElementById('sync-info');
-    info.textContent = mode === 'upload' ? "☁️ Sende Backup..." : "☁️ Lade Daten...";
+    info.textContent = mode === 'upload' ? "☁️ Sende..." : "☁️ Lade...";
 
     try {
         const response = await gapi.client.drive.files.list({ spaces: 'appDataFolder', fields: 'files(id, name)' });
@@ -173,22 +181,24 @@ async function syncWithCloud(mode = 'upload') {
                     method: 'POST', headers: { 'Authorization': 'Bearer ' + gapi.client.getToken().access_token }, body: form
                 });
             }
-            info.textContent = "✅ Cloud-Sync aktiv";
+            info.textContent = "✅ Cloud-Backup aktuell";
         } else if (file) {
             const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
                 headers: { 'Authorization': 'Bearer ' + gapi.client.getToken().access_token }
             });
             const cloudData = await res.json();
             localStorage.setItem(DB_KEY, JSON.stringify(cloudData));
-            info.textContent = "✅ Cloud-Sync aktiv";
+            info.textContent = "✅ Daten synchronisiert";
+        } else {
+            info.textContent = "✅ Keine Cloud-Datei gefunden";
         }
     } catch (e) { 
-        info.textContent = "⚠️ Sync-Fehler"; 
+        info.textContent = "Sync-Fehler: " + JSON.stringify(e); 
         console.error(e);
     }
 }
 
-// OCR & KI Scan Logik
+// OCR Scan
 document.getElementById('imgInp').onchange = async (e) => {
     const status = document.getElementById('status');
     const progCont = document.getElementById('scan-progress-container');
@@ -197,14 +207,14 @@ document.getElementById('imgInp').onchange = async (e) => {
     
     for(let file of e.target.files) {
         fill.style.width = "30%";
-        status.textContent = "Lese Text (OCR)...";
+        status.textContent = "OCR läuft...";
         const worker = await Tesseract.createWorker("deu");
         const { data } = await worker.recognize(file);
         await worker.terminate();
         
         fill.style.width = "60%";
-        status.textContent = "KI Analyse läuft...";
-        const prompt = `Extrahiere Shop (Whitelist: ${knownShops.join(",")}) und Items als JSON: {"shop":"","total":0,"items":[{"n":"","p":0,"c":""}]} aus diesem Text: ${data.text}`;
+        status.textContent = "KI Analyse...";
+        const prompt = `Extrahiere Shop (Whitelist: ${knownShops.join(",")}) und Items als JSON: {"shop":"","total":0,"items":[{"n":"","p":0,"c":""}]} aus: ${data.text}`;
         
         try {
             const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -214,45 +224,28 @@ document.getElementById('imgInp').onchange = async (e) => {
             const aiJson = await res.json();
             const receipt = JSON.parse(aiJson.choices[0].message.content.match(/\{.*\}/s)[0]);
             
-            fill.style.width = "90%";
             const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
             db.push({...receipt, id: Date.now(), date: new Date().toISOString().split('T')[0]});
             localStorage.setItem(DB_KEY, JSON.stringify(db));
             
             await syncWithCloud('upload');
             fill.style.width = "100%";
-            document.getElementById('latest-scan-container').innerHTML = `
-              <div class="card" style="border-left: 5px solid var(--success)">
-                <b>${receipt.shop}</b> erfasst: ${receipt.total.toFixed(2)}€
-              </div>`;
-        } catch(e) { 
-            status.textContent = "KI-Fehler!"; 
-        }
+            document.getElementById('latest-scan-container').innerHTML = `<div class="card">✅ Erfasst: ${receipt.shop}</div>`;
+        } catch(e) { status.textContent = "KI-Fehler!"; }
     }
-    setTimeout(() => { progCont.style.display = "none"; fill.style.width="0%"; }, 3000);
+    setTimeout(() => { progCont.style.display = "none"; }, 3000);
 };
 
-// UI & Shop Verwaltung
+// UI Navigation & Shop-Liste
 function renderShops() {
     const container = document.getElementById('shopChipsContainer');
     container.innerHTML = knownShops.map(s => `<span class="chip">${s}<span class="chip-del" onclick="removeShop('${s}')">×</span></span>`).join('');
 }
-
 document.getElementById('addShopBtn').onclick = () => {
     const inp = document.getElementById('newShopInput');
-    if(inp.value.trim()) { 
-      knownShops.push(inp.value.trim()); 
-      localStorage.setItem(SHOPS_KEY, JSON.stringify(knownShops)); 
-      inp.value=''; 
-      renderShops(); 
-    }
+    if(inp.value.trim()) { knownShops.push(inp.value.trim()); localStorage.setItem(SHOPS_KEY, JSON.stringify(knownShops)); inp.value=''; renderShops(); }
 };
-
-window.removeShop = (s) => { 
-  knownShops = knownShops.filter(x => x !== s); 
-  localStorage.setItem(SHOPS_KEY, JSON.stringify(knownShops)); 
-  renderShops(); 
-};
+window.removeShop = (s) => { knownShops = knownShops.filter(x => x !== s); localStorage.setItem(SHOPS_KEY, JSON.stringify(knownShops)); renderShops(); };
 
 document.querySelectorAll('.tab').forEach(t => {
     t.onclick = () => {
@@ -263,10 +256,13 @@ document.querySelectorAll('.tab').forEach(t => {
     };
 });
 
-window.onload = () => { gapiLoaded(); gisLoaded(); renderShops(); };
+window.onload = () => { 
+    setTimeout(() => {
+        if(typeof gapi !== 'undefined') gapiLoaded();
+        if(typeof google !== 'undefined') gisLoaded();
+        renderShops();
+    }, 1500);
+};
 </script>
-
-<script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
-<script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
