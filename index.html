@@ -44,7 +44,11 @@
     .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
     .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 14px; border-radius: var(--radius); border: none; background: var(--primary); color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer; margin-top: 10px; font-family: var(--font-main); }
     .btn.google { background: #fff; color: #444; border: 1px solid var(--border); gap: 8px; font-weight: 600; }
+    .btn.logout { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; font-size: 0.8rem; padding: 8px; margin-top: 5px; }
     .btn.ai { background: linear-gradient(135deg, var(--primary), #a855f7); }
+
+    .user-banner { display: none; background: var(--primary-light); padding: 12px; border-radius: var(--radius); text-align: center; border: 1px solid var(--primary); margin-bottom: 10px; }
+    .user-banner b { color: var(--primary); }
 
     .progress-bg { background: var(--border); height: 12px; border-radius: 6px; overflow: hidden; margin-top: 8px; }
     .progress-fill { background: var(--success); height: 100%; width: 0%; transition: width 0.6s cubic-bezier(0.1, 0.7, 1.0, 0.1); }
@@ -140,10 +144,14 @@
     <section id="screen-settings" class="screen">
       <div class="card">
         <h2 style="margin-top:0">Cloud Sync</h2>
+        <div id="userBanner" class="user-banner">
+            <span>Eingeloggt als <b id="userName">...</b></span>
+            <button class="btn logout" onclick="logout()">Google Abmelden</button>
+        </div>
         <button id="googleLoginBtn" class="btn google">
           <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" width="18"> Google Drive Login
         </button>
-        <p style="font-size:0.75rem; text-align:center; color:var(--text-muted); margin-top:10px">Ihre Daten werden sicher im AppData-Ordner Ihres Google Drive gespeichert.</p>
+        <p style="font-size:0.75rem; text-align:center; color:var(--text-muted); margin-top:10px">Ihre Daten & Shops werden in Ihrem Google Drive gesichert.</p>
       </div>
 
       <div class="card">
@@ -182,7 +190,7 @@
 <script>
 const CLIENT_ID = '874809033702-5n2klkcs50hs8ugamgqvq8irfjfare3g.apps.googleusercontent.com';
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
-const SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
+const SCOPES = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.profile';
 const API_KEY = "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";
 const DB_KEY = 'receipts_v12_final';
 const SHOPS_KEY = 'custom_shops_v1';
@@ -208,7 +216,7 @@ function gisLoaded() {
       if (resp.error) return;
       localStorage.setItem('google_token', resp.access_token);
       gapi.client.setToken({access_token: resp.access_token});
-      await syncWithCloud('download');
+      await checkAuthAuto();
     }
   }); 
   gisInited = true;
@@ -216,36 +224,65 @@ function gisLoaded() {
 
 async function checkAuthAuto() {
   const token = localStorage.getItem('google_token');
+  const btn = document.getElementById('googleLoginBtn');
+  const banner = document.getElementById('userBanner');
+  const nameLabel = document.getElementById('userName');
+
   if (token && gapiInited) {
     gapi.client.setToken({access_token: token});
     try {
-      await gapi.client.drive.about.get({fields: 'user'});
+      // Profil laden für Namen
+      const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const userData = await userRes.json();
+      
+      nameLabel.textContent = userData.name || "Benutzer";
+      btn.style.display = 'none';
+      banner.style.display = 'block';
       document.getElementById('sync-info').textContent = "✅ CLOUD AKTIV";
       await syncWithCloud('download');
     } catch (e) { 
-        document.getElementById('sync-info').textContent = "⚠️ LOGIN ERFORDERLICH"; 
-        if(gisInited) tokenClient.requestAccessToken({prompt: ''});
+        logout(); // Bei Fehler (Token abgelaufen)
     }
   } else {
+      btn.style.display = 'flex';
+      banner.style.display = 'none';
       document.getElementById('sync-info').textContent = "LOKALER MODUS";
   }
 }
 
+async function logout() {
+    const token = localStorage.getItem('google_token');
+    if(token) google.accounts.oauth2.revoke(token);
+    localStorage.removeItem('google_token');
+    gapi.client.setToken(null);
+    document.getElementById('googleLoginBtn').style.display = 'flex';
+    document.getElementById('userBanner').style.display = 'none';
+    document.getElementById('sync-info').textContent = "LOKALER MODUS";
+    location.reload(); // Refresh um lokalen Modus zu cleanen
+}
+
 async function syncWithCloud(mode = 'upload') {
   if (!gapiInited || !gapi.client.getToken()) return;
-  const info = document.getElementById('sync-info');
   try {
     const response = await gapi.client.drive.files.list({ spaces: 'appDataFolder', fields: 'files(id, name)' });
     const file = response.result.files[0];
+    
+    // Wir speichern Belege UND Shops in einem Paket
+    const bundle = {
+        receipts: JSON.parse(localStorage.getItem(DB_KEY) || '[]'),
+        shops: JSON.parse(localStorage.getItem(SHOPS_KEY) || '[]')
+    };
+
     if (mode === 'upload') {
-      const data = localStorage.getItem(DB_KEY) || '[]';
-      const fileData = new Blob([data], {type: 'application/json'});
+      const fileData = new Blob([JSON.stringify(bundle)], {type: 'application/json'});
       if (file) {
         await fetch(`https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=media`, {
           method: 'PATCH', headers: { 'Authorization': 'Bearer ' + gapi.client.getToken().access_token }, body: fileData
         });
       } else {
-        const metadata = { name: 'receipts_backup.json', parents: ['appDataFolder'] };
+        const metadata = { name: 'receipts_v12_bundle.json', parents: ['appDataFolder'] };
         const form = new FormData();
         form.append('metadata', new Blob([JSON.stringify(metadata)], {type: 'application/json'}));
         form.append('file', fileData);
@@ -257,12 +294,15 @@ async function syncWithCloud(mode = 'upload') {
       const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
         headers: { 'Authorization': 'Bearer ' + gapi.client.getToken().access_token }
       });
-      const cloudData = await res.json();
-      localStorage.setItem(DB_KEY, JSON.stringify(cloudData));
-      render();
+      const cloudBundle = await res.json();
+      if(cloudBundle.receipts) localStorage.setItem(DB_KEY, JSON.stringify(cloudBundle.receipts));
+      if(cloudBundle.shops && cloudBundle.shops.length > 0) {
+          localStorage.setItem(SHOPS_KEY, JSON.stringify(cloudBundle.shops));
+          knownShops = cloudBundle.shops;
+      }
+      render(); renderShops();
     }
-    info.textContent = "✅ CLOUD AKTIV";
-  } catch (e) { info.textContent = "⚠️ SYNC FEHLER"; }
+  } catch (e) { console.error("Cloud Sync Fehler", e); }
 }
 
 document.querySelectorAll('.tab').forEach(t => {
@@ -351,14 +391,14 @@ document.getElementById('addShopBtn').onclick = () => {
   if(i.value) { 
     knownShops.push(i.value.trim()); 
     localStorage.setItem(SHOPS_KEY, JSON.stringify(knownShops)); 
-    i.value=''; renderShops(); 
+    i.value=''; renderShops(); syncWithCloud('upload');
   }
 };
 
 window.removeShop = (s) => { 
   knownShops = knownShops.filter(x => x!==s); 
   localStorage.setItem(SHOPS_KEY, JSON.stringify(knownShops)); 
-  renderShops(); 
+  renderShops(); syncWithCloud('upload');
 };
 
 document.getElementById('googleLoginBtn').onclick = () => tokenClient.requestAccessToken({prompt: 'select_account'});
