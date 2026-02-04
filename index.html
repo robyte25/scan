@@ -12,7 +12,6 @@
 
   <style>
     :root {
-      /* Moderne Web-Font-Kombination für WebView */
       --font-main: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       --primary: #2563eb; --primary-light: #dbeafe; --bg: #f3f4f6; --card: #ffffff;
       --text: #111827; --text-muted: #6b7280; --border: #e5e7eb; --danger: #dc2626; --warning: #f59e0b; --success: #10b981; --radius: 12px;
@@ -146,11 +145,19 @@
         </button>
         <p style="font-size:0.75rem; text-align:center; color:var(--text-muted); margin-top:10px">Ihre Daten werden sicher im AppData-Ordner Ihres Google Drive gespeichert.</p>
       </div>
+
       <div class="card">
-        <h2>Monats-Budget</h2>
-        <label style="font-size:0.8rem; font-weight:600">Limit in €:</label>
+        <h2>Budget & Läden</h2>
+        <label style="font-size:0.8rem; font-weight:600">Monatsbudget in €:</label>
         <input type="number" id="budgetInput" placeholder="Z.B. 400">
+        
+        <div style="display: flex; gap: 8px; margin-top: 15px;">
+          <input type="text" id="newShopInput" placeholder="Laden hinzufügen..." style="margin-top:0">
+          <button class="btn" id="addShopBtn" style="margin-top:0; width: 60px; padding: 10px">+</button>
+        </div>
+        <div id="shopChipsContainer" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top:12px"></div>
       </div>
+
       <div class="card">
         <h2>Design & Ansicht</h2>
         <select id="thm">
@@ -186,7 +193,6 @@ const VALID_CATEGORIES = ["Obst & Gemüse", "Fleisch & Wurst", "Backwaren", "Get
 
 let tokenClient, gapiInited = false, gisInited = false;
 
-// GOOGLE AUTH LOGIC
 function gapiLoaded() { 
   gapi.load('client', async () => { 
     await gapi.client.init({ discoveryDocs: [DISCOVERY_DOC] }); 
@@ -218,7 +224,6 @@ async function checkAuthAuto() {
       await syncWithCloud('download');
     } catch (e) { 
         document.getElementById('sync-info').textContent = "⚠️ LOGIN ERFORDERLICH"; 
-        // Versuche stilles Erneuern des Tokens
         if(gisInited) tokenClient.requestAccessToken({prompt: ''});
     }
   } else {
@@ -260,7 +265,6 @@ async function syncWithCloud(mode = 'upload') {
   } catch (e) { info.textContent = "⚠️ SYNC FEHLER"; }
 }
 
-// NAVIGATION
 document.querySelectorAll('.tab').forEach(t => {
   t.onclick = () => {
     document.querySelectorAll('.tab, .screen').forEach(el => el.classList.remove('active'));
@@ -270,7 +274,6 @@ document.querySelectorAll('.tab').forEach(t => {
   };
 });
 
-// SCAN & AI LOGIC
 document.getElementById('imgInp').onchange = async (e) => {
   const status = document.getElementById('status'), progCont = document.getElementById('scan-progress-container'), fill = document.getElementById('scan-fill');
   progCont.style.display = "block";
@@ -278,18 +281,9 @@ document.getElementById('imgInp').onchange = async (e) => {
     fill.style.width = "20%"; status.textContent = "Texte lesen (OCR)...";
     const worker = await Tesseract.createWorker("deu");
     const { data } = await worker.recognize(file); await worker.terminate();
-    
     fill.style.width = "60%"; status.textContent = "KI bereinigt Daten...";
     
-    // Geschärfter KI Prompt gegen OCR-Müll
-    const prompt = `Analysiere diesen OCR-Text eines Kassenbons. 
-    AUFGABE: 
-    1. Extrahiere Shop, Gesamtsumme und Artikel.
-    2. REINIGUNG: Ignoriere wirre Zeichenfolgen, Sonderzeichen-Salat oder Bruchstücke wie "xX_!!". Behalte nur echte Produktnamen.
-    3. SEI STRENG: Wenn ein Name unleserlich ist, nenne ihn "Unbekannter Artikel".
-    4. KATEGORIEN: Ordne jedem Artikel EINE Kategorie zu aus: [${VALID_CATEGORIES.join(", ")}].
-    FORMAT: Antworte NUR im JSON-Format: {"shop":"","total":0.00,"items":[{"n":"Produktname","p":0.00,"c":"Kategorie"}]}.
-    TEXT: ${data.text}`;
+    const prompt = `Analysiere diesen OCR-Text. Shop aus [${knownShops.join(", ")}]. REINIGUNG: Ignoriere wirre Zeichenfolgen oder Sonderzeichen. Behalte nur echte Produktnamen. KATEGORIEN: [${VALID_CATEGORIES.join(", ")}]. FORMAT: JSON {"shop":"","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. TEXT: ${data.text}`;
 
     try {
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -298,48 +292,35 @@ document.getElementById('imgInp').onchange = async (e) => {
       });
       const aiJson = await res.json();
       const receipt = JSON.parse(aiJson.choices[0].message.content.match(/\{.*\}/s)[0]);
-      
       const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-      db.push({...receipt, date: new Date().toISOString().split('T')[0], id: Date.now(), timestamp: Date.now()});
+      db.push({...receipt, date: new Date().toISOString().split('T')[0], id: Date.now()});
       localStorage.setItem(DB_KEY, JSON.stringify(db));
-      
       fill.style.width = "100%";
       document.getElementById('latest-scan-container').innerHTML = `<div class="card" style="border-left:5px solid var(--success)">✅ Erfasst: ${receipt.shop} (${receipt.total.toFixed(2)}€)</div>`;
       await syncWithCloud('upload'); render();
-    } catch(err) { status.textContent = "KI-Fehler!"; }
+    } catch(err) { status.textContent = "Fehler!"; }
   }
   setTimeout(() => { progCont.style.display = "none"; fill.style.width="0%"; }, 2000);
 };
 
-// RENDERING
 function render() {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
   const dFrom = document.getElementById('dateFrom').value, dTo = document.getElementById('dateTo').value;
-  
   let filtered = db.filter(r => (!dFrom || r.date >= dFrom) && (!dTo || r.date <= dTo)).map(r => {
     const items = currentCat === "ALL" ? r.items : r.items.filter(i => i.c === currentCat);
     return {...r, viewTotal: items.reduce((s,i) => s + (parseFloat(i.p) || 0), 0), viewItems: items};
   }).filter(r => r.viewTotal > 0);
 
   const totalSum = filtered.reduce((s, r) => s + r.viewTotal, 0);
+  document.getElementById('statGrid').innerHTML = `<div class="stat"><span class="stat-val">${totalSum.toFixed(2)}€</span>Ausgaben</div><div class="stat"><span class="stat-val">${filtered.length}</span>Belege</div>`;
   
-  // Stats UI
-  document.getElementById('statGrid').innerHTML = `
-    <div class="stat"><span class="stat-val">${totalSum.toFixed(2)}€</span>Ausgaben</div>
-    <div class="stat"><span class="stat-val">${filtered.length}</span>Belege</div>`;
-  
-  // Budget UI
   const limit = parseFloat(localStorage.getItem('monthly_budget') || 0);
   const bCont = document.getElementById('budget-card-container');
   if(limit > 0) {
     const p = Math.min((totalSum / limit) * 100, 100);
-    bCont.innerHTML = `<div class="card">
-      <div style="display:flex; justify-content:space-between; font-weight:700"><span>Monatsbudget</span><span>${totalSum.toFixed(2)} / ${limit}€</span></div>
-      <div class="progress-bg"><div class="progress-fill ${p>90?'danger':(p>70?'warning':'')}" style="width:${p}%"></div></div>
-    </div>`;
+    bCont.innerHTML = `<div class="card"><b>Monatsbudget</b>: ${totalSum.toFixed(2)} / ${limit}€<div class="progress-bg"><div class="progress-fill ${p>90?'danger':(p>70?'warning':'')}" style="width:${p}%"></div></div></div>`;
   } else bCont.innerHTML = "";
 
-  // History List mit Kategorien
   document.getElementById('hist-list').innerHTML = filtered.slice().reverse().map(r => `
     <div class="receipt-item">
       <div class="receipt-header" onclick="this.nextElementSibling.classList.toggle('open')">
@@ -347,41 +328,39 @@ function render() {
         <span style="font-weight:700">${r.viewTotal.toFixed(2)}€ ▾</span>
       </div>
       <div class="receipt-details">
-        <table class="detail-table">
-          ${r.viewItems.map(i => `<tr>
-            <td><b>${i.n}</b><br><span class="item-cat-label">${i.c}</span></td>
-            <td style="text-align:right; font-weight:600">${i.p.toFixed(2)}€</td>
-          </tr>`).join('')}
-        </table>
-        <button class="del-btn" style="color:var(--danger); background:none; border:none; padding:10px 0; font-size:0.75rem; font-weight:700; cursor:pointer" onclick="deleteReceipt(${r.id})">BELEG LÖSCHEN</button>
+        <table class="detail-table">${r.viewItems.map(i => `<tr><td><b>${i.n}</b><br><small>${i.c}</small></td><td style="text-align:right">${i.p.toFixed(2)}€</td></tr>`).join('')}</table>
+        <button style="color:var(--danger); background:none; border:none; padding:10px 0; font-weight:700; cursor:pointer" onclick="deleteReceipt(${r.id})">LÖSCHEN</button>
       </div>
     </div>`).join('');
-
-  // Inflation Logic
-  const prodHist = {};
-  db.forEach(r => r.items.forEach(i => {
-    const n = i.n.toUpperCase().trim(); if(!prodHist[n]) prodHist[n]=[]; prodHist[n].push({p:i.p, d:r.date});
-  }));
-  let infHtml = "";
-  for(let n in prodHist) {
-    if(prodHist[n].length > 1) {
-      const sorted = prodHist[n].sort((a,b) => new Date(a.d) - new Date(b.d));
-      const l = sorted[sorted.length-1], pr = sorted[sorted.length-2];
-      if(l.p > pr.p) infHtml += `<div class="inflation-card">📈 <b>${n}</b>: +${((l.p-pr.p)/pr.p*100).toFixed(0)}% (Teurer!)</div>`;
-    }
-  }
-  document.getElementById('inflation-container').innerHTML = infHtml ? `<div class="card"><h2>Preiswarnungen</h2>${infHtml}</div>` : "";
 }
 
 function deleteReceipt(id) {
-  if(confirm('Diesen Beleg entfernen?')) {
+  if(confirm('Löschen?')) {
     let db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
     localStorage.setItem(DB_KEY, JSON.stringify(db.filter(r => r.id !== id)));
     render(); syncWithCloud('upload');
   }
 }
 
-// EVENTS & INIT
+function renderShops() {
+  document.getElementById('shopChipsContainer').innerHTML = knownShops.map(s => `<div class="chip">${s}<span onclick="removeShop('${s}')" style="margin-left:8px;color:var(--danger);font-weight:bold">×</span></div>`).join('');
+}
+
+document.getElementById('addShopBtn').onclick = () => {
+  const i = document.getElementById('newShopInput'); 
+  if(i.value) { 
+    knownShops.push(i.value.trim()); 
+    localStorage.setItem(SHOPS_KEY, JSON.stringify(knownShops)); 
+    i.value=''; renderShops(); 
+  }
+};
+
+window.removeShop = (s) => { 
+  knownShops = knownShops.filter(x => x!==s); 
+  localStorage.setItem(SHOPS_KEY, JSON.stringify(knownShops)); 
+  renderShops(); 
+};
+
 document.getElementById('googleLoginBtn').onclick = () => tokenClient.requestAccessToken({prompt: 'select_account'});
 document.getElementById('budgetInput').oninput = (e) => { localStorage.setItem('monthly_budget', e.target.value); render(); };
 document.getElementById('budgetInput').value = localStorage.getItem('monthly_budget');
@@ -397,10 +376,9 @@ document.getElementById('catChips').onclick = (e) => {
 
 document.getElementById('aiBtn').onclick = async () => {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-  document.getElementById('aiRes').innerHTML = "KI analysiert Ausgaben...";
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST", headers: { "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: "Gib mir 3 konkrete, kurze Spar-Tipps basierend auf diesen Käufen: " + JSON.stringify(db.slice(-10)) }] })
+    body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: "Gib mir 3 Spar-Tipps für: " + JSON.stringify(db.slice(-10)) }] })
   });
   const data = await res.json();
   document.getElementById('aiRes').innerHTML = `<div class="ai-box">${data.choices[0].message.content.replace(/\n/g,'<br>')}</div>`;
@@ -408,8 +386,7 @@ document.getElementById('aiBtn').onclick = async () => {
 
 window.onload = () => {
   const t = localStorage.getItem('theme'); if(t) { document.body.setAttribute('data-theme', t); document.getElementById('thm').value = t; }
-  render();
-  // WebView Auto-Login Delay
+  render(); renderShops();
   setTimeout(() => { gapiLoaded(); gisLoaded(); }, 1000);
 };
 </script>
