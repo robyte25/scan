@@ -5,7 +5,6 @@
   <title>Kassenbon Pro – Budget & Inflation</title>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://apis.google.com/js/api.js" async defer></script>
 
@@ -98,8 +97,8 @@
     <section id="screen-scan" class="screen active">
       <div class="card">
         <h2 style="margin-top:0">Bons erfassen</h2>
-        <input type="file" id="imgInp" accept="image/*,application/pdf" multiple style="display:none">
-        <label for="imgInp" class="file-label">📸 BON WÄHLEN (BILD / PDF)</label>
+        <input type="file" id="imgInp" accept="image/*" multiple style="display:none">
+        <label for="imgInp" class="file-label">📸 BON FOTOGRAFIEREN / LADEN</label>
         <div id="scan-progress-container">
             <div id="status" style="font-size:0.8rem; margin-bottom:6px; text-align:center; font-weight:600">Bereit...</div>
             <div class="scan-bar-bg"><div id="scan-fill" class="scan-bar-fill"></div></div>
@@ -189,7 +188,6 @@
 </div>
 
 <script>
-// KONFIGURATION
 const CLIENT_ID = '874809033702-5n2klkcs50hs8ugamgqvq8irfjfare3g.apps.googleusercontent.com';
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
 const SCOPES = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.profile';
@@ -197,15 +195,12 @@ const API_KEY = "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";
 const DB_KEY = 'receipts_v12_final';
 const SHOPS_KEY = 'custom_shops_v1';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
-
 let currentCat = "ALL";
 let knownShops = JSON.parse(localStorage.getItem(SHOPS_KEY) || '["REWE", "Lidl", "Aldi", "Edeka", "Netto", "Penny", "Rossmann", "DM", "Apotheke"]');
 const VALID_CATEGORIES = ["Obst & Gemüse", "Fleisch & Wurst", "Backwaren", "Getränke", "Milchprodukte", "Süßwaren", "Haushalt", "Drogerie", "Gesundheit", "Sonstiges"];
 
 let tokenClient, gapiInited = false, gisInited = false;
 
-// GOOGLE DRIVE & AUTH LOGIK
 function gapiLoaded() { 
   gapi.load('client', async () => { 
     await gapi.client.init({ discoveryDocs: [DISCOVERY_DOC] }); 
@@ -236,16 +231,20 @@ async function checkAuthAuto() {
   if (token && gapiInited) {
     gapi.client.setToken({access_token: token});
     try {
+      // Profil laden für Namen
       const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
           headers: { 'Authorization': `Bearer ${token}` }
       });
       const userData = await userRes.json();
+      
       nameLabel.textContent = userData.name || "Benutzer";
       btn.style.display = 'none';
       banner.style.display = 'block';
       document.getElementById('sync-info').textContent = "✅ CLOUD AKTIV";
       await syncWithCloud('download');
-    } catch (e) { logout(); }
+    } catch (e) { 
+        logout(); // Bei Fehler (Token abgelaufen)
+    }
   } else {
       btn.style.display = 'flex';
       banner.style.display = 'none';
@@ -258,7 +257,10 @@ async function logout() {
     if(token) google.accounts.oauth2.revoke(token);
     localStorage.removeItem('google_token');
     gapi.client.setToken(null);
-    location.reload();
+    document.getElementById('googleLoginBtn').style.display = 'flex';
+    document.getElementById('userBanner').style.display = 'none';
+    document.getElementById('sync-info').textContent = "LOKALER MODUS";
+    location.reload(); // Refresh um lokalen Modus zu cleanen
 }
 
 async function syncWithCloud(mode = 'upload') {
@@ -266,6 +268,8 @@ async function syncWithCloud(mode = 'upload') {
   try {
     const response = await gapi.client.drive.files.list({ spaces: 'appDataFolder', fields: 'files(id, name)' });
     const file = response.result.files[0];
+    
+    // Wir speichern Belege UND Shops in einem Paket
     const bundle = {
         receipts: JSON.parse(localStorage.getItem(DB_KEY) || '[]'),
         shops: JSON.parse(localStorage.getItem(SHOPS_KEY) || '[]')
@@ -292,85 +296,53 @@ async function syncWithCloud(mode = 'upload') {
       });
       const cloudBundle = await res.json();
       if(cloudBundle.receipts) localStorage.setItem(DB_KEY, JSON.stringify(cloudBundle.receipts));
-      if(cloudBundle.shops) { localStorage.setItem(SHOPS_KEY, JSON.stringify(cloudBundle.shops)); knownShops = cloudBundle.shops; }
+      if(cloudBundle.shops && cloudBundle.shops.length > 0) {
+          localStorage.setItem(SHOPS_KEY, JSON.stringify(cloudBundle.shops));
+          knownShops = cloudBundle.shops;
+      }
       render(); renderShops();
     }
-  } catch (e) { console.error("Sync-Fehler", e); }
+  } catch (e) { console.error("Cloud Sync Fehler", e); }
 }
 
-// BATCH-PROCESSING & PDF LOGIK
-async function processFile(file) {
-    let imageSrc = "";
-    if (file.type === "application/pdf") {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
-        const page = await pdf.getPage(1);
-        const viewport = page.getViewport({scale: 2.0});
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
-        await page.render({canvasContext: context, viewport: viewport}).promise;
-        imageSrc = canvas.toDataURL('image/jpeg', 0.8);
-    } else {
-        imageSrc = await new Promise(resolve => {
-            const reader = new FileReader();
-            reader.onload = e => resolve(e.target.result);
-            reader.readAsDataURL(file);
-        });
-    }
-    
-    // Tesseract OCR
-    const worker = await Tesseract.createWorker("deu");
-    const { data } = await worker.recognize(imageSrc);
-    await worker.terminate();
-
-    // KI Analyse
-    const prompt = `Analysiere diesen OCR-Text. Shop aus [${knownShops.join(", ")}]. REINIGUNG: Ignoriere wirre Zeichenfolgen. Behalte nur echte Produktnamen. KATEGORIEN: [${VALID_CATEGORIES.join(", ")}]. FORMAT: JSON {"shop":"","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. TEXT: ${data.text}`;
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST", headers: { "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.1 })
-    });
-    const aiJson = await res.json();
-    const receipt = JSON.parse(aiJson.choices[0].message.content.match(/\{.*\}/s)[0]);
-    
-    const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-    db.push({...receipt, date: new Date().toISOString().split('T')[0], id: Date.now()});
-    localStorage.setItem(DB_KEY, JSON.stringify(db));
-    return receipt;
-}
+document.querySelectorAll('.tab').forEach(t => {
+  t.onclick = () => {
+    document.querySelectorAll('.tab, .screen').forEach(el => el.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('screen-' + t.dataset.screen).classList.add('active');
+    render();
+  };
+});
 
 document.getElementById('imgInp').onchange = async (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length === 0) return;
+  const status = document.getElementById('status'), progCont = document.getElementById('scan-progress-container'), fill = document.getElementById('scan-fill');
+  progCont.style.display = "block";
+  for(let file of e.target.files) {
+    fill.style.width = "20%"; status.textContent = "Texte lesen (OCR)...";
+    const worker = await Tesseract.createWorker("deu");
+    const { data } = await worker.recognize(file); await worker.terminate();
+    fill.style.width = "60%"; status.textContent = "KI bereinigt Daten...";
+    
+    const prompt = `Analysiere diesen OCR-Text. Shop aus [${knownShops.join(", ")}]. REINIGUNG: Ignoriere wirre Zeichenfolgen oder Sonderzeichen. Behalte nur echte Produktnamen. KATEGORIEN: [${VALID_CATEGORIES.join(", ")}]. FORMAT: JSON {"shop":"","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. TEXT: ${data.text}`;
 
-    const status = document.getElementById('status'), progCont = document.getElementById('scan-progress-container'), fill = document.getElementById('scan-fill');
-    progCont.style.display = "block";
-    
-    let successCount = 0;
-    for (let i = 0; i < files.length; i++) {
-        try {
-            const percent = ((i) / files.length) * 100;
-            fill.style.width = percent + "%";
-            status.textContent = `Bearbeite ${i+1} von ${files.length}...`;
-            
-            const result = await processFile(files[i]);
-            successCount++;
-            document.getElementById('latest-scan-container').innerHTML = `<div class="card" style="border-left:5px solid var(--success)">✅ Erfasst: ${result.shop} (${result.total.toFixed(2)}€)</div>`;
-        } catch (err) {
-            console.error(err);
-            status.textContent = "Fehler bei Datei " + (i+1);
-        }
-    }
-    
-    fill.style.width = "100%";
-    status.textContent = `${successCount} Bons erfolgreich geladen!`;
-    await syncWithCloud('upload');
-    render();
-    setTimeout(() => { progCont.style.display = "none"; }, 3000);
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST", headers: { "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.1 })
+      });
+      const aiJson = await res.json();
+      const receipt = JSON.parse(aiJson.choices[0].message.content.match(/\{.*\}/s)[0]);
+      const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+      db.push({...receipt, date: new Date().toISOString().split('T')[0], id: Date.now()});
+      localStorage.setItem(DB_KEY, JSON.stringify(db));
+      fill.style.width = "100%";
+      document.getElementById('latest-scan-container').innerHTML = `<div class="card" style="border-left:5px solid var(--success)">✅ Erfasst: ${receipt.shop} (${receipt.total.toFixed(2)}€)</div>`;
+      await syncWithCloud('upload'); render();
+    } catch(err) { status.textContent = "Fehler!"; }
+  }
+  setTimeout(() => { progCont.style.display = "none"; fill.style.width="0%"; }, 2000);
 };
 
-// RESTLICHE FUNKTIONEN (Rendern, Tabs, etc.)
 function render() {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
   const dFrom = document.getElementById('dateFrom').value, dTo = document.getElementById('dateTo').value;
@@ -402,6 +374,14 @@ function render() {
     </div>`).join('');
 }
 
+function deleteReceipt(id) {
+  if(confirm('Löschen?')) {
+    let db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+    localStorage.setItem(DB_KEY, JSON.stringify(db.filter(r => r.id !== id)));
+    render(); syncWithCloud('upload');
+  }
+}
+
 function renderShops() {
   document.getElementById('shopChipsContainer').innerHTML = knownShops.map(s => `<div class="chip">${s}<span onclick="removeShop('${s}')" style="margin-left:8px;color:var(--danger);font-weight:bold">×</span></div>`).join('');
 }
@@ -420,23 +400,6 @@ window.removeShop = (s) => {
   localStorage.setItem(SHOPS_KEY, JSON.stringify(knownShops)); 
   renderShops(); syncWithCloud('upload');
 };
-
-function deleteReceipt(id) {
-  if(confirm('Löschen?')) {
-    let db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-    localStorage.setItem(DB_KEY, JSON.stringify(db.filter(r => r.id !== id)));
-    render(); syncWithCloud('upload');
-  }
-}
-
-document.querySelectorAll('.tab').forEach(t => {
-  t.onclick = () => {
-    document.querySelectorAll('.tab, .screen').forEach(el => el.classList.remove('active'));
-    t.classList.add('active');
-    document.getElementById('screen-' + t.dataset.screen).classList.add('active');
-    render();
-  };
-});
 
 document.getElementById('googleLoginBtn').onclick = () => tokenClient.requestAccessToken({prompt: 'select_account'});
 document.getElementById('budgetInput').oninput = (e) => { localStorage.setItem('monthly_budget', e.target.value); render(); };
