@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Kassenbon Pro – Esslingen Edition</title>
+  <title>Kassenbon Pro – Full Version</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -127,7 +127,7 @@
             </div>
         </div>
       </div>
-      <button class="btn ai" onclick="runAiAnalyse()">✨ KI Spar-Analyse (Esslingen)</button>
+      <button class="btn ai" onclick="runAiAnalyse()">✨ KI Spar-Analyse</button>
       <div id="ai-output"></div>
       <div id="main-list" style="margin-top:20px;"></div>
     </section>
@@ -160,11 +160,9 @@
 </div>
 
 <script>
-const GROQ_API_KEY = "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";
-const GEMINI_API_KEY = "AIzaSyCx_QVCTxiq8YAe5cf6j7mvO1WyworB5QY";
+const API_KEY = "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";
 const DB_KEY = "receipts_v12_final";
 const CLIENT_ID = '874809033702-5n2klkcs50hs8ugamgqvq8irfjfare3g.apps.googleusercontent.com';
-
 let currentCat = "ALL";
 let currentShop = "ALL";
 
@@ -238,9 +236,8 @@ async function processFile(file) {
   const worker = await Tesseract.createWorker("deu");
   const { data } = await worker.recognize(img);
   await worker.terminate();
-
   const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST", headers: {"Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json"},
+    method: "POST", headers: {"Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json"},
     body: JSON.stringify({
       model: "llama-3.3-70b-versatile",
       messages: [
@@ -272,6 +269,7 @@ function setShop(shop, el) {
 
 function render() {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || "[]");
+  
   const markets = [...new Set(db.map(r => r.shop))].filter(s => s && s !== "Scan unklar");
   const mDiv = document.getElementById('market-chips');
   mDiv.innerHTML = `<div class="chip ${currentShop === 'ALL' ? 'active' : ''}" onclick="setShop('ALL', this)">Alle</div>` + 
@@ -317,46 +315,19 @@ function render() {
   `).join('');
 }
 
-// --- NEUE GEMINI WEB-SUCHE FÜR ESSLINGEN ---
 async function runAiAnalyse() {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || "[]");
   if(!db.length) return;
-  
-  const output = document.getElementById('ai-output');
-  output.innerHTML = "<div class='card'>🌐 Suche Angebote in Esslingen...</div>";
-
-  const history = db.slice(-3).map(r => r.items.map(i => i.n).join(", ")).join(", ");
-
-  const payload = {
-    contents: [{
-      parts: [{
-        text: `Meine letzten Einkäufe: ${history}. 
-               Suche im Internet nach aktuellen Supermarkt-Angeboten in Esslingen am Neckar. 
-               Gibt es diese Produkte dort aktuell im Angebot oder sogar irgendwo kostenlos (Aktionen)? 
-               Nenne mir konkrete Läden in Esslingen und Preise.`
-      }]
-    }],
-    tools: [{ google_search_retrieval: {} }] 
-  };
-
-  try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await res.json();
-    const resultText = data.candidates[0].content.parts[0].text;
-    
-    output.innerHTML = `
-      <div class="card" style="background:rgba(168, 85, 247, 0.1); border:1px solid #a855f7;">
-        <small style="color:#a855f7; font-weight:bold;">📍 ESSLINGEN LIVE-CHECK</small>
-        <p style="font-size:0.9rem; line-height:1.4;">${resultText.replace(/\n/g, '<br>')}</p>
-      </div>`;
-  } catch (e) {
-    output.innerHTML = "<div class='card'>Fehler bei der Websuche. Prüfe den Key.</div>";
-  }
+  document.getElementById('ai-output').innerHTML = "<div class='card'>KI analysiert...</div>";
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST", headers: {"Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json"},
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      messages: [{role: "user", content: `Analysiere kurz: ${JSON.stringify(db.slice(-3))}. Gib 2 kurze Spartipps.`}]
+    })
+  });
+  const data = await res.json();
+  document.getElementById('ai-output').innerHTML = `<div class="card" style="background:rgba(168, 85, 247, 0.1); border:1px solid #a855f7;">${data.choices[0].message.content}</div>`;
 }
 
 function saveBudget(v) { localStorage.setItem('app_budget', v); render(); }
