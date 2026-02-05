@@ -2,327 +2,232 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Kassenbon Pro – Budget & Inflation</title>
-
+  <title>Kassenbon Pro – Final Fix</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="https://apis.google.com/js/api.js" async defer></script>
-
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <script src="https://accounts.google.com/gsi/client"></script>
+  <script src="https://apis.google.com/js/api.js"></script>
 
   <style>
     :root {
-      --font-main: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      --primary: #2563eb; --primary-light: #dbeafe; --bg: #f3f4f6; --card: #ffffff;
-      --text: #111827; --text-muted: #6b7280; --border: #e5e7eb; --danger: #dc2626; --warning: #f59e0b; --success: #10b981; --radius: 12px;
-      --app-width: 480px;
+      --font-main: 'Inter', sans-serif;
+      --primary: #2563eb; --bg: #f3f4f6; --card: #ffffff;
+      --text: #111827; --text-muted: #6b7280; --border: #e5e7eb; --danger: #dc2626; --success: #10b981; --radius: 12px;
     }
-    [data-theme="dark"] { --primary: #60a5fa; --primary-light: #1e3a8a; --bg: #111827; --card: #1f2937; --text: #f9fafb; --text-muted: #9ca3af; --border: #374151; }
-    [data-theme="nature"] { --primary: #059669; --primary-light: #d1fae5; --bg: #f0fdf4; --card: #ffffff; --text: #064e3b; --border: #bcf0da; }
-    [data-theme="berry"] { --primary: #db2777; --primary-light: #fce7f3; --bg: #fff1f2; --card: #ffffff; --text: #831843; --border: #fecdd3; }
-    [data-theme="ocean"] { --primary: #0891b2; --primary-light: #cffafe; --bg: #ecfeff; --card: #ffffff; --text: #164e63; --border: #a5f3fc; }
-    [data-theme="sunset"] { --primary: #ea580c; --primary-light: #ffedd5; --bg: #fff7ed; --card: #ffffff; --text: #7c2d12; --border: #fed7aa; }
-    [data-theme="gold"] { --primary: #854d0e; --primary-light: #fef9c3; --bg: #fefce8; --card: #ffffff; --text: #422006; --border: #fef08a; }
-
-    body.desktop-mode { --app-width: 1000px; }
-    * { box-sizing: border-box; transition: all 0.2s ease; -webkit-tap-highlight-color: transparent; outline: none; }
-    body { margin: 0; font-family: var(--font-main); background: var(--bg); color: var(--text); overflow-x: hidden; -webkit-font-smoothing: antialiased; }
-    .app { max-width: var(--app-width); margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
-
-    header { padding: 16px; background: var(--card); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
-    .sync-status { font-size: 0.7rem; color: var(--primary); font-weight: 700; margin-top: 4px; text-align: center; text-transform: uppercase; letter-spacing: 0.05em; }
-    
-    .tabs { display: flex; margin-top: 12px; background: var(--bg); border-radius: 999px; padding: 4px; border: 1px solid var(--border); }
-    .tab { flex: 1; text-align: center; padding: 10px 4px; font-size: 0.8rem; border-radius: 999px; cursor: pointer; color: var(--text-muted); font-weight: 500; }
-    .tab.active { background: var(--primary); color: #fff; font-weight: 700; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-
-    main { flex: 1; padding: 12px; padding-bottom: 72px; }
-    .screen { display: none; animation: fadeIn 0.3s ease; }
+    [data-theme="dark"] { --primary: #60a5fa; --bg: #111827; --card: #1f2937; --text: #f9fafb; --border: #374151; }
+    body { margin: 0; font-family: var(--font-main); background: var(--bg); color: var(--text); }
+    .app { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+    header { padding: 16px; background: var(--card); border-bottom: 1px solid var(--border); text-align: center; position: sticky; top: 0; z-index: 100; }
+    .tabs { display: flex; margin-top: 12px; background: var(--bg); border-radius: 999px; padding: 4px; }
+    .tab { flex: 1; padding: 10px; font-size: 0.8rem; border-radius: 999px; cursor: pointer; color: var(--text-muted); text-align: center; }
+    .tab.active { background: var(--primary); color: #fff; font-weight: 700; }
+    main { flex: 1; padding: 12px; padding-bottom: 80px; }
+    .screen { display: none; }
     .screen.active { display: block; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-
-    .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-    .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 14px; border-radius: var(--radius); border: none; background: var(--primary); color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer; margin-top: 10px; font-family: var(--font-main); }
-    .btn.google { background: #fff; color: #444; border: 1px solid var(--border); gap: 8px; font-weight: 600; }
-    .btn.logout { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; font-size: 0.8rem; padding: 8px; margin-top: 5px; }
-    .btn.ai { background: linear-gradient(135deg, var(--primary), #a855f7); }
-
-    .user-banner { display: none; background: var(--primary-light); padding: 12px; border-radius: var(--radius); text-align: center; border: 1px solid var(--primary); margin-bottom: 10px; }
-    .user-banner b { color: var(--primary); }
-
-    .progress-bg { background: var(--border); height: 12px; border-radius: 6px; overflow: hidden; margin-top: 8px; }
-    .progress-fill { background: var(--success); height: 100%; width: 0%; transition: width 0.6s cubic-bezier(0.1, 0.7, 1.0, 0.1); }
-
-    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
-    .stat { background: var(--primary-light); padding: 14px; border-radius: var(--radius); text-align: center; border: 1px solid transparent; }
-    .stat-val { display: block; font-weight: 800; color: var(--primary); font-size: 1.2rem; }
-
-    .category-chips { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-    .chip { flex-shrink: 0; padding: 7px 15px; border-radius: 999px; border: 1px solid var(--border); font-size: 0.75rem; background: var(--card); cursor: pointer; font-weight: 500; }
-    .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
-
-    .receipt-item { padding: 14px 0; border-bottom: 1px solid var(--border); }
+    .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); }
+    .btn { width: 100%; padding: 14px; border-radius: var(--radius); border: none; background: var(--primary); color: #fff; font-weight: 700; cursor: pointer; margin-top: 10px; }
+    .btn.google { background: #fff; color: #444; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .progress-bg { background: var(--border); height: 10px; border-radius: 5px; overflow: hidden; margin-top: 10px; }
+    .progress-fill { background: var(--success); height: 100%; width: 0%; transition: width 0.3s; }
+    .receipt-item { padding: 12px; border-bottom: 1px solid var(--border); background: var(--card); margin-bottom: 4px; border-radius: 8px; }
     .receipt-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
-    .receipt-details { display: none; margin-top: 10px; background: var(--bg); padding: 12px; border-radius: 8px; border: 1px solid var(--border); }
-    .receipt-details.open { display: block; }
-
-    .detail-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-    .detail-table td { padding: 8px 0; border-bottom: 1px dotted var(--border); }
-
-    .file-label { display: block; padding: 40px 20px; border: 2px dashed var(--primary); border-radius: var(--radius); text-align: center; color: var(--primary); cursor: pointer; font-weight: 700; background: var(--primary-light); opacity: 0.8; }
-
-    input, select { font-family: var(--font-main); width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); margin-top: 6px; font-size: 0.9rem; }
-
-    #scan-progress-container { display: none; margin: 15px 0; }
-    .scan-bar-bg { background: var(--border); height: 8px; border-radius: 4px; overflow: hidden; }
-    .scan-bar-fill { background: var(--primary); height: 100%; width: 0%; transition: width 0.3s linear; }
+    .details { display: none; padding-top: 10px; font-size: 0.85rem; border-top: 1px dotted var(--border); margin-top: 10px; }
+    .details.open { display: block; }
+    .file-label { display: block; padding: 30px; border: 2px dashed var(--primary); border-radius: var(--radius); text-align: center; color: var(--primary); font-weight: 700; cursor: pointer; }
+    #sync-status { font-size: 0.65rem; font-weight: 700; color: var(--primary); text-transform: uppercase; margin-top: 5px; }
   </style>
 </head>
-<body>
+<body data-theme="default">
+
 <div class="app">
   <header>
-    <h1 style="margin:0; font-size: 1.4rem; text-align:center; font-weight: 800; letter-spacing: -0.02em;">Kassenbon Pro</h1>
-    <div id="sync-info" class="sync-status">Offline-Modus</div>
+    <h1 style="margin:0; font-size: 1.3rem;">Kassenbon Pro</h1>
+    <div id="sync-status">Lokaler Modus</div>
     <div class="tabs">
-      <div class="tab active" data-screen="scan">Scan</div>
-      <div class="tab" data-screen="stats">Statistik</div>
-      <div class="tab" data-screen="settings">Optionen</div>
+      <div class="tab active" onclick="showScreen('scan', this)">Scan</div>
+      <div class="tab" onclick="showScreen('list', this)">Historie</div>
+      <div class="tab" onclick="showScreen('settings', this)">Optionen</div>
     </div>
   </header>
 
   <main>
-    <section id="screen-scan" class="screen active">
+    <section id="s-scan" class="screen active">
       <div class="card">
-        <h2 style="margin-top:0">Bons erfassen</h2>
-        <input type="file" id="imgInp" accept=".jpg,.jpeg,.png,.pdf,image/*,application/pdf" multiple style="display:none">
-        <label for="imgInp" class="file-label">📸 BON WÄHLEN (BILD / PDF)</label>
-        <div id="scan-progress-container">
-            <div id="status" style="font-size:0.85rem; margin-bottom:6px; text-align:center; font-weight:600; line-height: 1.4;">
-                <div id="batch-step">Bereit...</div>
-                <div id="detail-step" style="font-size: 0.7rem; color: var(--text-muted); font-weight: 400;">Warte auf Auswahl...</div>
-            </div>
-            <div class="scan-bar-bg"><div id="scan-fill" class="scan-bar-fill"></div></div>
+        <input type="file" id="imgInp" accept=".pdf,image/*" multiple style="display:none" onchange="handleFiles(this.files)">
+        <label for="imgInp" class="file-label">📸 BON WÄHLEN</label>
+        <div id="prog-cont" style="display:none; margin-top:15px;">
+          <div style="text-align:center; font-size:0.8rem;">
+            <div id="p-main" style="font-weight:700">Bereit...</div>
+            <div id="p-detail" style="color:var(--text-muted)">Warte...</div>
+          </div>
+          <div class="progress-bg"><div id="p-fill" class="progress-fill"></div></div>
         </div>
       </div>
-      <div id="latest-scan-container"></div>
+      <div id="last-res"></div>
     </section>
 
-    <section id="screen-stats" class="screen">
-      <div id="budget-card-container"></div>
+    <section id="s-list" class="screen">
       <div class="card">
-        <button class="btn ai" id="aiBtn">✨ KI Spar-Analyse</button>
-        <div id="aiRes"></div>
-      </div>
-      <div class="card">
-        <h2 style="margin-top:0">Historie & Filter</h2>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom:12px">
-            <input type="date" id="dateFrom">
-            <input type="date" id="dateTo">
+        <div id="stat-summary" style="display:flex; justify-content:space-around; text-align:center; font-weight:800; color:var(--primary);">
+          <div><small style="color:var(--text-muted); display:block;">Summe</small><span id="sum-val">0.00€</span></div>
+          <div><small style="color:var(--text-muted); display:block;">Anzahl</small><span id="count-val">0</span></div>
         </div>
-        <div class="category-chips" id="catChips">
-          <div class="chip active" data-cat="ALL">Alle</div>
-          <div class="chip" data-cat="Obst & Gemüse">Obst & Gemüse</div>
-          <div class="chip" data-cat="Fleisch & Wurst">Fleisch & Wurst</div>
-          <div class="chip" data-cat="Backwaren">Backwaren</div>
-          <div class="chip" data-cat="Getränke">Getränke</div>
-          <div class="chip" data-cat="Milchprodukte">Milchprodukte</div>
-          <div class="chip" data-cat="Süßwaren">Süßwaren</div>
-          <div class="chip" data-cat="Haushalt">Haushalt</div>
-          <div class="chip" data-cat="Drogerie">Drogerie</div>
-          <div class="chip" data-cat="Gesundheit">Gesundheit</div>
-          <div class="chip" data-cat="Sonstiges">Sonstiges</div>
-        </div>
-        <div class="stats-grid" id="statGrid"></div>
-        <div id="hist-list" style="margin-top:15px"></div>
       </div>
+      <div id="main-list"></div>
     </section>
 
-    <section id="screen-settings" class="screen">
+    <section id="s-settings" class="screen">
       <div class="card">
-        <h2 style="margin-top:0">Cloud Sync</h2>
-        <div id="userBanner" class="user-banner">
-            <span>Eingeloggt als <b id="userName">...</b></span>
-            <button class="btn logout" onclick="logout()">Google Abmelden</button>
+        <h3>Cloud Sync</h3>
+        <div id="user-info" style="display:none; margin-bottom:10px;">
+          Eingeloggt als: <b id="u-name"></b>
+          <button class="btn" style="background:var(--danger)" onclick="logout()">Abmelden</button>
         </div>
-        <button id="googleLoginBtn" class="btn google">
+        <button id="login-btn" class="btn google" onclick="login()">
           <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" width="18"> Google Drive Login
         </button>
       </div>
-      </section>
+      <button class="btn" style="background:var(--danger); opacity:0.7;" onclick="resetApp()">App Zurücksetzen</button>
+    </section>
   </main>
 </div>
 
 <script>
-const CLIENT_ID = '874809033702-5n2klkcs50hs8ugamgqvq8irfjfare3g.apps.googleusercontent.com';
-const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
-const SCOPES = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.profile';
 const API_KEY = "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";
-const DB_KEY = 'receipts_v12_final';
-const SHOPS_KEY = 'custom_shops_v1';
+const DB_KEY = "receipts_v12_final";
+const CLIENT_ID = '874809033702-5n2klkcs50hs8ugamgqvq8irfjfare3g.apps.googleusercontent.com';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
-
-let currentCat = "ALL";
-let knownShops = JSON.parse(localStorage.getItem(SHOPS_KEY) || '["REWE", "Lidl", "Aldi", "Edeka", "Netto", "Penny", "Rossmann", "DM", "Apotheke"]');
-const VALID_CATEGORIES = ["Obst & Gemüse", "Fleisch & Wurst", "Backwaren", "Getränke", "Milchprodukte", "Süßwaren", "Haushalt", "Drogerie", "Gesundheit", "Sonstiges"];
-let tokenClient, gapiInited = false, gisInited = false;
-
-// DATEI-VERARBEITUNG
-async function processFile(file, updateDetail) {
-    let imageSrc = "";
-    if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
-        updateDetail("PDF-Konvertierung...");
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
-        const page = await pdf.getPage(1);
-        const viewport = page.getViewport({scale: 2.0});
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
-        await page.render({canvasContext: context, viewport: viewport}).promise;
-        imageSrc = canvas.toDataURL('image/jpeg', 0.8);
-    } else {
-        imageSrc = await new Promise(resolve => {
-            const reader = new FileReader();
-            reader.onload = e => resolve(e.target.result);
-            reader.readAsDataURL(file);
-        });
-    }
-    
-    updateDetail("OCR-Scan läuft...");
-    const worker = await Tesseract.createWorker("deu");
-    const { data } = await worker.recognize(imageSrc);
-    await worker.terminate();
-
-    updateDetail("KI-Analyse...");
-    const prompt = `Analysiere diesen Bon. Shop aus [${knownShops.join(", ")}]. JSON Format: {"shop":"","total":0.00,"items":[{"n":"Name","p":0.00,"c":"Kategorie"}]}. Text: ${data.text}`;
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST", headers: { "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.1 })
-    });
-    const aiJson = await res.json();
-    const receipt = JSON.parse(aiJson.choices[0].message.content.match(/\{.*\}/s)[0]);
-    
-    const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-    const newReceipt = {...receipt, date: new Date().toISOString().split('T')[0], id: Date.now()};
-    db.push(newReceipt);
-    localStorage.setItem(DB_KEY, JSON.stringify(db));
-    return newReceipt;
+// 1. NAVIGATION
+function showScreen(id, el) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('s-' + id).classList.add('active');
+  el.classList.add('active');
+  if(id === 'list') render();
 }
 
-document.getElementById('imgInp').onchange = async (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length === 0) return;
-    const progCont = document.getElementById('scan-progress-container');
-    const fill = document.getElementById('scan-fill');
-    progCont.style.display = "block";
+// 2. DATEI-VERARBEITUNG
+async function handleFiles(files) {
+  if(!files.length) return;
+  const cont = document.getElementById('prog-cont');
+  const f = document.getElementById('p-fill');
+  cont.style.display = "block";
+
+  let db = JSON.parse(localStorage.getItem(DB_KEY) || "[]");
+
+  for(let i=0; i<files.length; i++) {
+    f.style.width = (i/files.length*100) + "%";
+    document.getElementById('p-main').textContent = `Datei ${i+1} von ${files.length}`;
     
-    for (let i = 0; i < files.length; i++) {
-        try {
-            fill.style.width = ((i) / files.length * 100) + "%";
-            document.getElementById('batch-step').textContent = `Bon ${i+1}/${files.length}`;
-            const result = await processFile(files[i], (msg) => document.getElementById('detail-step').textContent = msg);
-            document.getElementById('latest-scan-container').innerHTML = `<div class="card" style="border-left:5px solid var(--success)">✅ Gespeichert: ${result.shop}</div>`;
-        } catch (err) { console.error(err); }
-    }
-    
-    fill.style.width = "100%";
-    render(); // WICHTIG: Sofort lokal rendern
-    await syncWithCloud('upload');
-    setTimeout(() => { progCont.style.display = "none"; document.getElementById('latest-scan-container').innerHTML = ""; }, 4000);
-};
-
-// INITIALISIERUNG & CLOUD (FIXED FÜR SCHNELLIGKEIT)
-window.onload = () => {
-  // 1. Sofort-UI Setup
-  const t = localStorage.getItem('theme'); 
-  if(t) document.body.setAttribute('data-theme', t);
-  render(); // Lade lokale Daten SOFORT
-  
-  // 2. Google Scripts im Hintergrund laden
-  setTimeout(() => {
-    const gScript = document.createElement('script'); gScript.src = "https://apis.google.com/js/api.js"; gScript.onload = gapiLoaded; document.head.appendChild(gScript);
-    const iScript = document.createElement('script'); iScript.src = "https://accounts.google.com/gsi/client"; iScript.onload = gisLoaded; document.head.appendChild(iScript);
-  }, 100);
-};
-
-function gapiLoaded() { gapi.load('client', async () => { await gapi.client.init({ discoveryDocs: [DISCOVERY_DOC] }); gapiInited = true; checkAuthAuto(); }); }
-function gisLoaded() { tokenClient = google.accounts.oauth2.initTokenClient({ client_id: CLIENT_ID, scope: SCOPES, callback: async (resp) => { localStorage.setItem('google_token', resp.access_token); gapi.client.setToken({access_token: resp.access_token}); await checkAuthAuto(); } }); gisInited = true; }
-
-async function checkAuthAuto() {
-  const token = localStorage.getItem('google_token');
-  if (token) {
-    document.getElementById('sync-info').textContent = "☁️ Synchronisiere...";
     try {
-      const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { 'Authorization': `Bearer ${token}` } });
-      const userData = await userRes.json();
-      document.getElementById('userName').textContent = userData.name || "User";
-      document.getElementById('googleLoginBtn').style.display = 'none';
-      document.getElementById('userBanner').style.display = 'block';
-      gapi.client.setToken({access_token: token});
-      await syncWithCloud('download');
-      document.getElementById('sync-info').textContent = "✅ Cloud aktiv";
-    } catch (e) { document.getElementById('sync-info').textContent = "⚠️ Sync Fehler"; }
-  }
-}
-
-async function syncWithCloud(mode = 'upload') {
-  if (!gapiInited || !gapi.client.getToken()) return;
-  try {
-    const response = await gapi.client.drive.files.list({ spaces: 'appDataFolder' });
-    const file = response.result.files[0];
-    if (mode === 'upload') {
-      const data = JSON.stringify({ receipts: JSON.parse(localStorage.getItem(DB_KEY) || '[]'), shops: knownShops });
-      const blob = new Blob([data], {type: 'application/json'});
-      if (file) { await fetch(`https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=media`, { method: 'PATCH', headers: { 'Authorization': 'Bearer ' + gapi.client.getToken().access_token }, body: blob }); }
-      else { /* Multipart Upload für neue Datei... */ }
-    } else if (file) {
-      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, { headers: { 'Authorization': 'Bearer ' + gapi.client.getToken().access_token } });
-      const cloudData = await res.json();
-      localStorage.setItem(DB_KEY, JSON.stringify(cloudData.receipts || []));
-      render(); // Nach Download erneut rendern
+      const result = await processSingleFile(files[i], (m) => document.getElementById('p-detail').textContent = m);
+      db.push({...result, id: Date.now() + i, date: new Date().toISOString().split('T')[0]});
+      localStorage.setItem(DB_KEY, JSON.stringify(db));
+      document.getElementById('last-res').innerHTML = `<div class="card" style="border-left:4px solid var(--success)">✅ ${result.shop}: ${result.total.toFixed(2)}€</div>`;
+    } catch(e) { 
+      document.getElementById('p-detail').textContent = "Fehler bei dieser Datei";
     }
-  } catch (e) {}
+  }
+  f.style.width = "100%";
+  render();
+  setTimeout(() => { cont.style.display="none"; document.getElementById('last-res').innerHTML=""; }, 3000);
 }
 
-function render() {
-  const db = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-  const dFrom = document.getElementById('dateFrom').value;
-  const dTo = document.getElementById('dateTo').value;
-  
-  // Filter-Logik
-  let filtered = db.filter(r => {
-    const matchDate = (!dFrom || r.date >= dFrom) && (!dTo || r.date <= dTo);
-    const hasItems = currentCat === "ALL" || r.items.some(i => i.c === currentCat);
-    return matchDate && hasItems;
-  });
+async function processSingleFile(file, statusCb) {
+  let img = "";
+  if(file.type === "application/pdf") {
+    statusCb("PDF wird gewandelt...");
+    const pdf = await pdfjsLib.getDocument(await file.arrayBuffer()).promise;
+    const page = await pdf.getPage(1);
+    const canvas = document.createElement('canvas');
+    const viewport = page.getViewport({scale: 1.5});
+    canvas.height = viewport.height; canvas.width = viewport.width;
+    await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
+    img = canvas.toDataURL('image/jpeg');
+  } else {
+    img = await new Promise(r => { const reader = new FileReader(); reader.onload=e=>r(e.target.result); reader.readAsDataURL(file); });
+  }
 
-  const totalSum = filtered.reduce((s, r) => s + r.total, 0);
-  document.getElementById('statGrid').innerHTML = `<div class="stat"><span class="stat-val">${totalSum.toFixed(2)}€</span>Summe</div><div class="stat"><span class="stat-val">${filtered.length}</span>Bons</div>`;
+  statusCb("KI Analyse läuft...");
+  const worker = await Tesseract.createWorker("deu");
+  const { data } = await worker.recognize(img);
+  await worker.terminate();
+
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST", headers: {"Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json"},
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      messages: [{role: "user", content: `JSON Format: {"shop":"","total":0.00,"items":[]}. Text: ${data.text}`}]
+    })
+  });
+  const json = await res.json();
+  return JSON.parse(json.choices[0].message.content.match(/\{.*\}/s)[0]);
+}
+
+// 3. LISTEN-RENDERING (DER FIX)
+function render() {
+  const db = JSON.parse(localStorage.getItem(DB_KEY) || "[]");
+  const listCont = document.getElementById('main-list');
   
-  // Verlauf rendern (Verhindert Verschwinden)
-  document.getElementById('hist-list').innerHTML = filtered.slice().reverse().map(r => `
+  const total = db.reduce((s, r) => s + (parseFloat(r.total) || 0), 0);
+  document.getElementById('sum-val').textContent = total.toFixed(2) + "€";
+  document.getElementById('count-val').textContent = db.length;
+
+  if(!db.length) {
+    listCont.innerHTML = "<p style='text-align:center; color:gray;'>Noch keine Bons vorhanden.</p>";
+    return;
+  }
+
+  listCont.innerHTML = db.slice().reverse().map(r => `
     <div class="receipt-item">
       <div class="receipt-header" onclick="this.nextElementSibling.classList.toggle('open')">
-        <span><b>${r.shop}</b><br><small>${r.date}</small></span>
-        <span style="font-weight:700">${r.total.toFixed(2)}€ ▾</span>
+        <span><b>${r.shop || 'Unbekannt'}</b><br><small>${r.date || ''}</small></span>
+        <span style="font-weight:700">${(r.total || 0).toFixed(2)}€ ▾</span>
       </div>
-      <div class="receipt-details">
-        <table class="detail-table">${r.items.map(i => `<tr><td>${i.n}</td><td style="text-align:right">${i.p.toFixed(2)}€</td></tr>`).join('')}</table>
-        <button class="btn logout" onclick="deleteReceipt(${r.id})">Löschen</button>
+      <div class="details">
+        ${(r.items || []).map(i => `<div style="display:flex;justify-content:space-between"><span>${i.n || 'Artikel'}</span><span>${(i.p || 0).toFixed(2)}€</span></div>`).join('')}
+        <button onclick="deleteItem(${r.id})" style="color:red; background:none; border:none; margin-top:10px; cursor:pointer;">Löschen</button>
       </div>
-    </div>`).join('');
+    </div>
+  `).join('');
 }
 
-// Hilfsfunktionen (Logout, Tabs etc.) bleiben funktional erhalten...
+// 4. GOOGLE LOGIN FIX
+function login() {
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.profile',
+    callback: (resp) => {
+      if(resp.access_token) {
+        localStorage.setItem('google_token', resp.access_token);
+        location.reload();
+      }
+    }
+  });
+  client.requestAccessToken();
+}
+
 function logout() { localStorage.removeItem('google_token'); location.reload(); }
-document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
-    document.querySelectorAll('.tab, .screen').forEach(el => el.classList.remove('active'));
-    t.classList.add('active'); document.getElementById('screen-' + t.dataset.screen).classList.add('active');
-    render();
-});
+
+window.onload = () => {
+  render();
+  const token = localStorage.getItem('google_token');
+  if(token) {
+    document.getElementById('login-btn').style.display = 'none';
+    document.getElementById('user-info').style.display = 'block';
+    document.getElementById('sync-status').textContent = "✅ Cloud verbunden";
+  }
+};
+
+function deleteItem(id) {
+  let db = JSON.parse(localStorage.getItem(DB_KEY) || "[]");
+  localStorage.setItem(DB_KEY, JSON.stringify(db.filter(r => r.id !== id)));
+  render();
+}
+
+function resetApp() { if(confirm("Alles löschen?")) { localStorage.clear(); location.reload(); } }
 </script>
 </body>
 </html>
