@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Kassenbon Pro – Final Stable</title>
+  <title>Kassenbon Pro – Supermarkt-Filter</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -58,12 +58,14 @@
     .details { display: none; padding-top: 10px; font-size: 0.85rem; border-top: 1px dotted var(--border); margin-top: 10px; }
     .details.open { display: block; }
     
-    .category-chips { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0; scrollbar-width: none; }
-    .chip { flex-shrink: 0; padding: 8px 16px; border-radius: 999px; border: 1px solid var(--border); font-size: 0.8rem; background: var(--card); cursor: pointer; }
-    .chip.active { background: var(--primary); color: white; }
+    .category-chips { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0; scrollbar-width: none; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+    .chip { flex-shrink: 0; padding: 8px 16px; border-radius: 999px; border: 1px solid var(--border); font-size: 0.8rem; background: var(--card); cursor: pointer; margin-bottom: 10px; }
+    .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
 
     select, input[type="number"], input[type="date"] { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); margin-top: 8px; }
     #sync-status { font-size: 0.7rem; font-weight: 800; color: var(--primary); text-transform: uppercase; margin-top: 5px; }
+    
+    .filter-label { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px; display: block; }
   </style>
 </head>
 <body data-theme="default">
@@ -96,17 +98,29 @@
       <div class="stats-grid-desktop">
         <div id="budget-area"></div>
         <div class="card">
+            <span class="filter-label">Zeitraum</span>
             <div style="display: flex; gap: 10px; margin-bottom:15px;">
                 <input type="date" id="dateFrom" onchange="render()">
                 <input type="date" id="dateTo" onchange="render()">
             </div>
+            
+            <span class="filter-label">Kategorien</span>
             <div class="category-chips">
                 <div class="chip active" onclick="setCat('ALL', this)">Alle</div>
-                <div class="chip" onclick="setCat('Lebensmittel', this)">Essen</div>
-                <div class="chip" onclick="setCat('Drogerie', this)">Drogerie</div>
-                <div class="chip" onclick="setCat('Haushalt', this)">Haus</div>
-                <div class="chip" onclick="setCat('Sonstiges', this)">Anderes</div>
+                <div class="chip" onclick="setCat('Obst&Gemüse', this)">🍏 Obst/G.</div>
+                <div class="chip" onclick="setCat('Fleisch', this)">🥩 Fleisch</div>
+                <div class="chip" onclick="setCat('Fisch', this)">🐟 Fisch</div>
+                <div class="chip" onclick="setCat('Milchprodukte', this)">🥛 Milch</div>
+                <div class="chip" onclick="setCat('Gesundheit', this)">🏥 Gsd.</div>
+                <div class="chip" onclick="setCat('Drogerie', this)">🧴 Drog.</div>
+                <div class="chip" onclick="setCat('Haushalt', this)">🏠 Haus</div>
+                <div class="chip" onclick="setCat('Sonstiges', this)">📦 Sonst.</div>
             </div>
+
+            <span class="filter-label">Märkte</span>
+            <div class="category-chips" id="market-chips">
+                </div>
+
             <div style="display:flex; justify-content:space-around; padding-top:15px; border-top:1px solid var(--border);">
                 <div style="text-align:center;"><small>Gesamt</small><br><b id="sum-val">0.00€</b></div>
                 <div style="text-align:center;"><small>Anzahl</small><br><b id="count-val">0</b></div>
@@ -150,8 +164,8 @@ const API_KEY = "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";
 const DB_KEY = "receipts_v12_final";
 const CLIENT_ID = '874809033702-5n2klkcs50hs8ugamgqvq8irfjfare3g.apps.googleusercontent.com';
 let currentCat = "ALL";
+let currentShop = "ALL";
 
-// --- THEME & INITIALISIERUNG ---
 function changeTheme(theme) {
   document.body.setAttribute('data-theme', theme);
   localStorage.setItem('app_theme', theme);
@@ -165,7 +179,6 @@ function showScreen(id, el) {
   render();
 }
 
-// --- GOOGLE LOGIN ---
 function login() {
   try {
     const client = google.accounts.oauth2.initTokenClient({
@@ -184,7 +197,6 @@ function login() {
 
 function logout() { localStorage.removeItem('google_token'); location.reload(); }
 
-// --- SCANNER LOGIK ---
 const fInp = document.getElementById('imgInp');
 fInp.addEventListener('change', async (e) => {
   if(e.target.files.length > 0) {
@@ -221,49 +233,59 @@ async function processFile(file) {
   } else {
     img = await new Promise(r => { const rd = new FileReader(); rd.onload=e=>r(e.target.result); rd.readAsDataURL(file); });
   }
-
   const worker = await Tesseract.createWorker("deu");
   const { data } = await worker.recognize(img);
   await worker.terminate();
-
   const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST", headers: {"Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json"},
     body: JSON.stringify({
       model: "llama-3.3-70b-versatile",
       messages: [
-        {role: "system", content: "Antworte NUR im JSON Format: {\"shop\":\"\",\"total\":0.0,\"items\":[{\"n\":\"\",\"p\":0.0,\"c\":\"\"}]}"},
+        {role: "system", content: "Antworte NUR im JSON Format: {\"shop\":\"\",\"total\":0.0,\"items\":[{\"n\":\"\",\"p\":0.0,\"c\":\"Obst&Gemüse|Fleisch|Fisch|Gesundheit|Milchprodukte|Drogerie|Haushalt|Sonstiges\"}]}"},
         {role: "user", content: data.text}
       ]
     })
   });
-
   const json = await aiRes.json();
   const content = json.choices[0].message.content;
   const match = content.match(/\{.*\}/s);
-  
-  if (match && match[0]) {
-    try { return JSON.parse(match[0]); } catch (e) {}
-  }
+  if (match && match[0]) { try { return JSON.parse(match[0]); } catch (e) {} }
   return { shop: "Scan unklar", total: 0.0, items: [{n: "Bitte prüfen", p: 0.0, c: "Sonstiges"}] };
 }
 
-// --- RENDERING & STATS ---
 function setCat(cat, el) {
   currentCat = cat;
-  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.parentNode.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  render();
+}
+
+function setShop(shop, el) {
+  currentShop = shop;
+  el.parentNode.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
   render();
 }
 
 function render() {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || "[]");
+  
+  // Dynamische Markt-Chips generieren
+  const markets = [...new Set(db.map(r => r.shop))].filter(s => s && s !== "Scan unklar");
+  const mDiv = document.getElementById('market-chips');
+  mDiv.innerHTML = `<div class="chip ${currentShop === 'ALL' ? 'active' : ''}" onclick="setShop('ALL', this)">Alle</div>` + 
+    markets.map(m => `<div class="chip ${currentShop === m ? 'active' : ''}" onclick="setShop('${m}', this)">${m}</div>`).join('');
+
   const dFrom = document.getElementById('dateFrom').value;
   const dTo = document.getElementById('dateTo').value;
+  
   const filtered = db.filter(r => {
     const dateMatch = (!dFrom || r.date >= dFrom) && (!dTo || r.date <= dTo);
     const catMatch = currentCat === "ALL" || r.items.some(i => i.c === currentCat);
-    return dateMatch && catMatch;
+    const shopMatch = currentShop === "ALL" || r.shop === currentShop;
+    return dateMatch && catMatch && shopMatch;
   });
+
   const sum = filtered.reduce((s, r) => s + (parseFloat(r.total) || 0), 0);
   document.getElementById('sum-val').textContent = sum.toFixed(2) + "€";
   document.getElementById('count-val').textContent = filtered.length;
