@@ -2,16 +2,15 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Kassenbon Pro – Deluxe</title>
+  <title>Kassenbon Pro – Deluxe Fixed</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
-  <script src="https://accounts.google.com/gsi/client"></script>
-  <script src="https://apis.google.com/js/api.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://apis.google.com/js/api.js" async defer></script>
 
   <style>
-    /* --- THEME VARIABLEN --- */
     :root {
       --font-main: 'Inter', sans-serif;
       --primary: #2563eb; --bg: #f3f4f6; --card: #ffffff;
@@ -19,13 +18,13 @@
       --app-width: 480px;
     }
 
-    /* Themes */
+    /* THEMES */
     [data-theme="berry"] { --primary: #db2777; --bg: #fff1f2; --card: #ffffff; --text: #831843; --border: #fecdd3; }
     [data-theme="nature"] { --primary: #059669; --bg: #f0fdf4; --card: #ffffff; --text: #064e3b; --border: #bcf0da; }
     [data-theme="ocean"] { --primary: #0891b2; --bg: #ecfeff; --card: #ffffff; --text: #164e63; --border: #a5f3fc; }
     [data-theme="dark"] { --primary: #60a5fa; --bg: #111827; --card: #1f2937; --text: #f9fafb; --border: #374151; }
 
-    /* --- DESKTOP MODUS --- */
+    /* DESKTOP MODUS */
     @media (min-width: 768px) {
       :root { --app-width: 850px; }
       .stats-grid-desktop { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
@@ -33,21 +32,16 @@
 
     * { -webkit-tap-highlight-color: transparent; outline: none; box-sizing: border-box; }
     body { margin: 0; font-family: var(--font-main); background: var(--bg); color: var(--text); transition: background 0.3s; }
-    
-    .app { max-width: var(--app-width); margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; transition: max-width 0.3s; }
-    
-    header { padding: 16px; background: var(--card); border-bottom: 1px solid var(--border); text-align: center; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-    
+    .app { max-width: var(--app-width); margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+    header { padding: 16px; background: var(--card); border-bottom: 1px solid var(--border); text-align: center; position: sticky; top: 0; z-index: 100; }
     .tabs { display: flex; margin: 12px auto 0; background: var(--bg); border-radius: 999px; padding: 4px; max-width: 500px; }
-    .tab { flex: 1; padding: 10px; font-size: 0.85rem; border-radius: 999px; cursor: pointer; color: var(--text-muted); text-align: center; transition: all 0.2s; font-weight: 500; }
-    .tab.active { background: var(--primary); color: #fff; font-weight: 700; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .tab { flex: 1; padding: 10px; font-size: 0.85rem; border-radius: 999px; cursor: pointer; color: var(--text-muted); text-align: center; transition: all 0.2s; }
+    .tab.active { background: var(--primary); color: #fff; font-weight: 700; }
 
     main { flex: 1; padding: 20px; padding-bottom: 80px; }
-    .screen { display: none; animation: fadeIn 0.3s ease; }
+    .screen { display: none; }
     .screen.active { display: block; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-    .card { background: var(--card); border-radius: var(--radius); padding: 20px; margin-bottom: 15px; border: 1px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+    .card { background: var(--card); border-radius: var(--radius); padding: 20px; margin-bottom: 15px; border: 1px solid var(--border); }
 
     .btn { 
       width: 100%; padding: 14px; border-radius: var(--radius); border: none; 
@@ -57,31 +51,27 @@
     .btn:active { transform: scale(0.96); filter: brightness(1.1); }
     .btn.ai { background: linear-gradient(135deg, var(--primary), #a855f7); }
 
-    .file-label { display: block; padding: 50px; border: 3px dashed var(--primary); border-radius: var(--radius); text-align: center; color: var(--primary); font-weight: 800; cursor: pointer; background: var(--card); transition: all 0.2s; }
-    .file-label:hover { background: var(--bg); }
-
+    .file-label { display: block; padding: 50px; border: 3px dashed var(--primary); border-radius: var(--radius); text-align: center; color: var(--primary); font-weight: 800; cursor: pointer; background: var(--card); }
     .progress-bg { background: var(--border); height: 12px; border-radius: 6px; overflow: hidden; margin-top: 15px; }
     .progress-fill { background: var(--success); height: 100%; width: 0%; transition: width 0.3s; }
 
-    .receipt-item { padding: 15px; border-bottom: 1px solid var(--border); background: var(--card); margin-bottom: 8px; border-radius: var(--radius); cursor: pointer; transition: transform 0.1s; }
-    .receipt-item:active { transform: scale(0.99); background: var(--bg); }
+    .receipt-item { padding: 15px; border-bottom: 1px solid var(--border); background: var(--card); margin-bottom: 8px; border-radius: var(--radius); }
+    .details { display: none; padding-top: 10px; font-size: 0.85rem; border-top: 1px dotted var(--border); margin-top: 10px; }
+    .details.open { display: block; }
     
     .category-chips { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0; scrollbar-width: none; }
-    .chip { flex-shrink: 0; padding: 8px 16px; border-radius: 999px; border: 1px solid var(--border); font-size: 0.8rem; background: var(--card); cursor: pointer; transition: all 0.2s; }
-    .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
+    .chip { flex-shrink: 0; padding: 8px 16px; border-radius: 999px; border: 1px solid var(--border); font-size: 0.8rem; background: var(--card); cursor: pointer; }
+    .chip.active { background: var(--primary); color: white; }
 
-    select, input[type="number"], input[type="date"] {
-      width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-family: inherit; margin-top: 8px;
-    }
-
-    #sync-status { font-size: 0.7rem; font-weight: 800; color: var(--primary); text-transform: uppercase; margin-top: 5px; letter-spacing: 0.5px; }
+    select, input[type="number"], input[type="date"] { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); margin-top: 8px; }
+    #sync-status { font-size: 0.7rem; font-weight: 800; color: var(--primary); text-transform: uppercase; margin-top: 5px; }
   </style>
 </head>
 <body>
 
 <div class="app">
   <header>
-    <h1 style="margin:0; font-size: 1.5rem; letter-spacing: -1px;">Kassenbon Pro</h1>
+    <h1 style="margin:0; font-size: 1.5rem;">Kassenbon Pro</h1>
     <div id="sync-status">Lokaler Modus</div>
     <div class="tabs">
       <div class="tab active" onclick="showScreen('scan', this)">Scan</div>
@@ -96,7 +86,7 @@
         <input type="file" id="imgInp" accept="image/*,.pdf" multiple style="display:none">
         <label for="imgInp" id="fileLabel" class="file-label">📸 BON WÄHLEN</label>
         <div id="prog-cont" style="display:none; margin-top:20px;">
-          <div id="p-main" style="text-align:center; font-weight:700;">Verarbeite Dokumente...</div>
+          <div id="p-main" style="text-align:center; font-weight:700;">Verarbeite...</div>
           <div class="progress-bg"><div id="p-fill" class="progress-fill"></div></div>
         </div>
       </div>
@@ -119,13 +109,12 @@
                 <div class="chip" onclick="setCat('Sonstiges', this)">Anderes</div>
             </div>
             <div style="display:flex; justify-content:space-around; padding-top:15px; border-top:1px solid var(--border);">
-                <div style="text-align:center;"><small>Gesamt</small><br><b id="sum-val" style="font-size:1.2rem;">0.00€</b></div>
-                <div style="text-align:center;"><small>Anzahl</small><br><b id="count-val" style="font-size:1.2rem;">0</b></div>
+                <div style="text-align:center;"><small>Gesamt</small><br><b id="sum-val">0.00€</b></div>
+                <div style="text-align:center;"><small>Anzahl</small><br><b id="count-val">0</b></div>
             </div>
         </div>
       </div>
-
-      <button class="btn ai" onclick="runAiAnalyse()">✨ KI Spar-Analyse starten</button>
+      <button class="btn ai" onclick="runAiAnalyse()">✨ KI Spar-Analyse</button>
       <div id="ai-output"></div>
       <div id="main-list" style="margin-top:20px;"></div>
     </section>
@@ -133,27 +122,26 @@
     <section id="s-settings" class="screen">
       <div class="stats-grid-desktop">
         <div class="card">
-          <h3>Erscheinungsbild</h3>
-          <label>Theme wählen:</label>
+          <h3>Design</h3>
           <select id="themeSelect" onchange="changeTheme(this.value)">
-            <option value="default">Standard Blau</option>
-            <option value="berry">Beere Pink</option>
-            <option value="nature">Natur Grün</option>
-            <option value="ocean">Ocean Türkis</option>
-            <option value="dark">Dark Mode</option>
+            <option value="default">Blau</option>
+            <option value="berry">Beere</option>
+            <option value="nature">Natur</option>
+            <option value="ocean">Ocean</option>
+            <option value="dark">Dark</option>
           </select>
         </div>
         <div class="card">
-          <h3>Monatsbudget</h3>
+          <h3>Budget</h3>
           <input type="number" id="budgetInput" placeholder="Limit in €" oninput="saveBudget(this.value)">
         </div>
       </div>
       <div class="card">
         <h3>Cloud Sync</h3>
-        <button id="login-btn" class="btn" style="background:white; color:#333; border:1px solid #ccc;" onclick="login()">Google Login</button>
+        <button id="login-btn" class="btn" style="background:#fff; color:#444; border:1px solid #ccc;" onclick="login()">Google Login</button>
         <button id="logout-btn" class="btn" style="background:var(--danger); display:none;" onclick="logout()">Abmelden</button>
       </div>
-      <button class="btn" style="background:var(--danger); opacity:0.5;" onclick="resetApp()">Alle Daten löschen</button>
+      <button class="btn" style="background:var(--danger); opacity:0.5;" onclick="resetApp()">Daten löschen</button>
     </section>
   </main>
 </div>
@@ -161,29 +149,54 @@
 <script>
 const API_KEY = "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";
 const DB_KEY = "receipts_v12_final";
+const CLIENT_ID = '874809033702-5n2klkcs50hs8ugamgqvq8irfjfare3g.apps.googleusercontent.com';
 let currentCat = "ALL";
 
-// --- THEME & START ---
+// --- NAVIGATION & THEMES ---
+function showScreen(id, el) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('s-' + id).classList.add('active');
+  el.classList.add('active');
+  render();
+}
+
 function changeTheme(theme) {
   document.body.setAttribute('data-theme', theme);
   localStorage.setItem('app_theme', theme);
 }
 
-window.onload = () => {
-  const savedTheme = localStorage.getItem('app_theme') || 'default';
-  changeTheme(savedTheme);
-  document.getElementById('themeSelect').value = savedTheme;
-  document.getElementById('budgetInput').value = localStorage.getItem('app_budget') || "";
+function setCat(cat, el) {
+  currentCat = cat;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
   render();
-  
-  if(localStorage.getItem('google_token')) {
-    document.getElementById('login-btn').style.display = 'none';
-    document.getElementById('logout-btn').style.display = 'block';
-    document.getElementById('sync-status').textContent = "✅ Cloud Aktiv";
-  }
-};
+}
 
-// --- STABILER DATEI-PICKER ---
+// --- GOOGLE LOGIN FIX ---
+function login() {
+  console.log("Login gestartet...");
+  try {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: 'https://www.googleapis.com/auth/drive.appdata',
+      callback: (response) => {
+        if (response.access_token) {
+          localStorage.setItem('google_token', response.access_token);
+          location.reload();
+        }
+      },
+    });
+    client.requestAccessToken();
+  } catch (err) {
+    alert("Google Login konnte nicht geladen werden. Bitte Seite neu laden.");
+    console.error(err);
+  }
+}
+
+function logout() { localStorage.removeItem('google_token'); location.reload(); }
+
+// --- SCANNER ---
 const fInp = document.getElementById('imgInp');
 fInp.addEventListener('change', async (e) => {
   if(e.target.files.length > 0) {
@@ -192,7 +205,6 @@ fInp.addEventListener('change', async (e) => {
   }
 });
 
-// --- CORE FUNKTIONEN (Fixes enthalten) ---
 async function handleFiles(files) {
   document.getElementById('prog-cont').style.display = "block";
   let db = JSON.parse(localStorage.getItem(DB_KEY) || "[]");
@@ -221,19 +233,14 @@ async function processFile(file) {
   } else {
     img = await new Promise(r => { const rd = new FileReader(); rd.onload=e=>r(e.target.result); rd.readAsDataURL(file); });
   }
-
   const worker = await Tesseract.createWorker("deu");
   const { data } = await worker.recognize(img);
   await worker.terminate();
-
   const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST", headers: {"Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json"},
     body: JSON.stringify({
       model: "llama-3.3-70b-versatile",
-      messages: [
-        {role: "system", content: "Präziser Kassenbon-Analyst. Keine Platzhalter. Echte Namen nutzen."},
-        {role: "user", content: `Extrahiere JSON: {"shop":"","total":0.0,"items":[{"n":"Name","p":0.0,"c":"Lebensmittel|Drogerie|Haushalt|Sonstiges"}]}. Text: ${data.text}`}
-      ]
+      messages: [{role: "system", content: "JSON: {\"shop\":\"\",\"total\":0.0,\"items\":[{\"n\":\"\",\"p\":0.0,\"c\":\"\"}]}"}, {role: "user", content: data.text}]
     })
   });
   const json = await aiRes.json();
@@ -244,69 +251,32 @@ function render() {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || "[]");
   const dFrom = document.getElementById('dateFrom').value;
   const dTo = document.getElementById('dateTo').value;
-  
   const filtered = db.filter(r => {
     const dateMatch = (!dFrom || r.date >= dFrom) && (!dTo || r.date <= dTo);
     const catMatch = currentCat === "ALL" || r.items.some(i => i.c === currentCat);
     return dateMatch && catMatch;
   });
-
   const sum = filtered.reduce((s, r) => s + (parseFloat(r.total) || 0), 0);
   document.getElementById('sum-val').textContent = sum.toFixed(2) + "€";
   document.getElementById('count-val').textContent = filtered.length;
-
   const budget = parseFloat(localStorage.getItem('app_budget') || 0);
   const bArea = document.getElementById('budget-area');
   if(budget > 0) {
     const perc = Math.min((sum/budget)*100, 100);
-    bArea.innerHTML = `<div class="card"><b>Budget-Status</b><br>${sum.toFixed(2)}€ von ${budget}€
-      <div class="progress-bg"><div class="progress-fill" style="width:${perc}%; background:${perc > 90 ? 'var(--danger)' : 'var(--success)'}"></div></div>
-    </div>`;
-  } else { bArea.innerHTML = ""; }
-
+    bArea.innerHTML = `<div class="card"><b>Budget:</b> ${sum.toFixed(2)}€ / ${budget}€<div class="progress-bg"><div class="progress-fill" style="width:${perc}%; background:${perc > 90 ? 'var(--danger)' : 'var(--success)'}"></div></div></div>`;
+  }
   document.getElementById('main-list').innerHTML = filtered.slice().reverse().map(r => `
     <div class="receipt-item">
-      <div style="display:flex; justify-content:space-between; align-items:center;" onclick="this.nextElementSibling.classList.toggle('open')">
+      <div style="display:flex; justify-content:space-between;" onclick="this.nextElementSibling.classList.toggle('open')">
         <span><b>${r.shop}</b><br><small>${r.date}</small></span>
-        <b style="color:var(--primary)">${r.total.toFixed(2)}€</b>
+        <b>${r.total.toFixed(2)}€</b>
       </div>
       <div class="details">
         ${r.items.map(i => `<div style="display:flex;justify-content:space-between"><span>${i.n}</span><span>${i.p.toFixed(2)}€</span></div>`).join('')}
-        <button onclick="deleteItem(${r.id})" style="color:var(--danger); background:none; border:none; margin-top:10px; cursor:pointer; width:100%; text-align:right;">Löschen</button>
+        <button onclick="deleteItem(${r.id})" style="color:var(--danger); background:none; border:none; margin-top:10px; cursor:pointer;">Löschen</button>
       </div>
     </div>
   `).join('');
-}
-
-// --- RESTLICHE FUNKTIONEN ---
-function showScreen(id, el) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('s-' + id).classList.add('active');
-  el.classList.add('active');
-  render();
-}
-
-function setCat(cat, el) {
-  currentCat = cat;
-  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
-  render();
-}
-
-async function runAiAnalyse() {
-  const db = JSON.parse(localStorage.getItem(DB_KEY) || "[]");
-  if(!db.length) return;
-  document.getElementById('ai-output').innerHTML = "<div class='card'>KI denkt nach...</div>";
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST", headers: {"Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json"},
-    body: JSON.stringify({
-      model: "llama-3.3-70b-versatile",
-      messages: [{role: "user", content: `Analysiere kurz: ${JSON.stringify(db.slice(-3))}. Gib 2 kurze Spartipps.`}]
-    })
-  });
-  const data = await res.json();
-  document.getElementById('ai-output').innerHTML = `<div class="card" style="background:rgba(168, 85, 247, 0.1); border:1px solid #a855f7;">${data.choices[0].message.content}</div>`;
 }
 
 function saveBudget(v) { localStorage.setItem('app_budget', v); render(); }
@@ -315,8 +285,19 @@ function deleteItem(id) {
   localStorage.setItem(DB_KEY, JSON.stringify(db.filter(r => r.id !== id)));
   render();
 }
-function login() { /* ... GSI Client Logik wie zuvor ... */ }
-function resetApp() { if(confirm("Wirklich alles löschen?")) { localStorage.clear(); location.reload(); } }
+function resetApp() { if(confirm("Alles löschen?")) { localStorage.clear(); location.reload(); } }
+
+window.onload = () => {
+  changeTheme(localStorage.getItem('app_theme') || 'default');
+  document.getElementById('themeSelect').value = localStorage.getItem('app_theme') || 'default';
+  document.getElementById('budgetInput').value = localStorage.getItem('app_budget') || "";
+  render();
+  if(localStorage.getItem('google_token')) {
+    document.getElementById('login-btn').style.display = 'none';
+    document.getElementById('logout-btn').style.display = 'block';
+    document.getElementById('sync-status').textContent = "✅ Cloud Aktiv";
+  }
+};
 </script>
 </body>
 </html>
