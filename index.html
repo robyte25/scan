@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Kassenbon Pro – Supermarkt-Filter</title>
+  <title>Kassenbon Pro – Full Version</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -54,8 +54,8 @@
     .progress-bg { background: var(--border); height: 12px; border-radius: 6px; overflow: hidden; margin-top: 15px; }
     .progress-fill { background: var(--success); height: 100%; width: 0%; transition: width 0.3s; }
 
-    .receipt-item { padding: 15px; border-bottom: 1px solid var(--border); background: var(--card); margin-bottom: 8px; border-radius: var(--radius); }
-    .details { display: none; padding-top: 10px; font-size: 0.85rem; border-top: 1px dotted var(--border); margin-top: 10px; }
+    .receipt-item { padding: 15px; border-bottom: 1px solid var(--border); background: var(--card); margin-bottom: 8px; border-radius: var(--radius); cursor: pointer; }
+    .details { display: none; padding-top: 10px; margin-top: 10px; border-top: 1px dashed var(--border); }
     .details.open { display: block; }
     
     .category-chips { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0; scrollbar-width: none; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
@@ -66,6 +66,7 @@
     #sync-status { font-size: 0.7rem; font-weight: 800; color: var(--primary); text-transform: uppercase; margin-top: 5px; }
     
     .filter-label { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px; display: block; }
+    .cat-badge { color: var(--primary); background: var(--bg); padding: 2px 6px; border-radius: 4px; margin-left: 5px; font-size: 0.7rem; font-weight: 600; }
   </style>
 </head>
 <body data-theme="default">
@@ -118,8 +119,7 @@
             </div>
 
             <span class="filter-label">Märkte</span>
-            <div class="category-chips" id="market-chips">
-                </div>
+            <div class="category-chips" id="market-chips"></div>
 
             <div style="display:flex; justify-content:space-around; padding-top:15px; border-top:1px solid var(--border);">
                 <div style="text-align:center;"><small>Gesamt</small><br><b id="sum-val">0.00€</b></div>
@@ -270,7 +270,6 @@ function setShop(shop, el) {
 function render() {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || "[]");
   
-  // Dynamische Markt-Chips generieren
   const markets = [...new Set(db.map(r => r.shop))].filter(s => s && s !== "Scan unklar");
   const mDiv = document.getElementById('market-chips');
   mDiv.innerHTML = `<div class="chip ${currentShop === 'ALL' ? 'active' : ''}" onclick="setShop('ALL', this)">Alle</div>` + 
@@ -299,13 +298,18 @@ function render() {
 
   document.getElementById('main-list').innerHTML = filtered.slice().reverse().map(r => `
     <div class="receipt-item">
-      <div style="display:flex; justify-content:space-between;" onclick="this.nextElementSibling.classList.toggle('open')">
+      <div style="display:flex; justify-content:space-between; align-items:center;" onclick="this.nextElementSibling.classList.toggle('open')">
         <span><b>${r.shop}</b><br><small>${r.date}</small></span>
-        <b>${(r.total || 0).toFixed(2)}€</b>
+        <b style="color:var(--primary)">${(r.total || 0).toFixed(2)}€</b>
       </div>
       <div class="details">
-        ${(r.items || []).map(i => `<div style="display:flex;justify-content:space-between"><span>${i.n}</span><span>${(i.p || 0).toFixed(2)}€</span></div>`).join('')}
-        <button onclick="deleteItem(${r.id})" style="color:var(--danger); background:none; border:none; margin-top:10px; cursor:pointer; width:100%; text-align:right;">Löschen</button>
+        ${(r.items || []).map(i => `
+          <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:0.9rem;">
+            <span>${i.n} <span class="cat-badge">${i.c}</span></span>
+            <span style="font-weight:600;">${(i.p || 0).toFixed(2)}€</span>
+          </div>
+        `).join('')}
+        <button onclick="deleteItem(${r.id})" style="color:var(--danger); background:none; border:none; margin-top:15px; cursor:pointer; width:100%; text-align:right; font-size:0.8rem; font-weight:700;">LÖSCHEN</button>
       </div>
     </div>
   `).join('');
