@@ -2,13 +2,16 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Kassenbon Pro – Full Version</title>
+  <title>Kassenbon Pro – Professional Version</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://apis.google.com/js/api.js" async defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 
   <style>
     :root {
@@ -18,7 +21,6 @@
       --app-width: 480px;
     }
 
-    /* THEMES */
     [data-theme="berry"] { --primary: #db2777; --bg: #fff1f2; --card: #ffffff; --text: #831843; --border: #fecdd3; }
     [data-theme="nature"] { --primary: #059669; --bg: #f0fdf4; --card: #ffffff; --text: #064e3b; --border: #bcf0da; }
     [data-theme="ocean"] { --primary: #0891b2; --bg: #ecfeff; --card: #ffffff; --text: #164e63; --border: #a5f3fc; }
@@ -98,6 +100,12 @@
     <section id="s-list" class="screen">
       <div class="stats-grid-desktop">
         <div id="budget-area"></div>
+        <div class="card" id="chart-card" style="display:none; text-align:center;">
+          <span class="filter-label">Kategorien Verteilung</span>
+          <div style="max-width: 200px; margin: 10px auto;">
+            <canvas id="categoryChart"></canvas>
+          </div>
+        </div>
         <div class="card">
             <span class="filter-label">Zeitraum</span>
             <div style="display: flex; gap: 10px; margin-bottom:15px;">
@@ -129,8 +137,8 @@
       </div>
       
       <button id="cloud-sync-btn" class="btn" style="background:#4285F4; display:none; margin-bottom:15px;" onclick="syncWithCloud()">☁️ Daten mit der Cloud synchronisieren</button>
-      
-      <button class="btn ai" onclick="runAiAnalyse()">✨ KI Spar-Analyse</button>
+      <button class="btn" style="background:#f43f5e; margin-bottom:15px;" onclick="exportPDF()">📄 PDF Report erstellen</button>
+      <button class="btn ai" onclick="runAiAnalyse()">✨ KI Spar-Analyse & Preis-Check</button>
       <div id="ai-output"></div>
       <div id="main-list" style="margin-top:20px;"></div>
     </section>
@@ -168,6 +176,7 @@ const DB_KEY = "receipts_v12_final";
 const CLIENT_ID = '874809033702-5n2klkcs50hs8ugamgqvq8irfjfare3g.apps.googleusercontent.com';
 let currentCat = "ALL";
 let currentShop = "ALL";
+let myChart = null;
 
 function changeTheme(theme) {
   document.body.setAttribute('data-theme', theme);
@@ -271,19 +280,25 @@ function setShop(shop, el) {
 }
 
 function render() {
-  const db = JSON.parse(localStorage.getItem(DB_KEY) || "[]");
-  
+  let db = [];
+  try {
+    db = JSON.parse(localStorage.getItem(DB_KEY) || "[]");
+    if(!Array.isArray(db)) db = []; 
+  } catch(e) { db = []; }
+
   const markets = [...new Set(db.map(r => r.shop))].filter(s => s && s !== "Scan unklar");
   const mDiv = document.getElementById('market-chips');
-  mDiv.innerHTML = `<div class="chip ${currentShop === 'ALL' ? 'active' : ''}" onclick="setShop('ALL', this)">Alle</div>` + 
-    markets.map(m => `<div class="chip ${currentShop === m ? 'active' : ''}" onclick="setShop('${m}', this)">${m}</div>`).join('');
+  if(mDiv) {
+    mDiv.innerHTML = `<div class="chip ${currentShop === 'ALL' ? 'active' : ''}" onclick="setShop('ALL', this)">Alle</div>` + 
+      markets.map(m => `<div class="chip ${currentShop === m ? 'active' : ''}" onclick="setShop('${m}', this)">${m}</div>`).join('');
+  }
 
   const dFrom = document.getElementById('dateFrom').value;
   const dTo = document.getElementById('dateTo').value;
   
   const filtered = db.filter(r => {
     const dateMatch = (!dFrom || r.date >= dFrom) && (!dTo || r.date <= dTo);
-    const catMatch = currentCat === "ALL" || r.items.some(i => i.c === currentCat);
+    const catMatch = currentCat === "ALL" || (r.items && Array.isArray(r.items) && r.items.some(i => i.c === currentCat));
     const shopMatch = currentShop === "ALL" || r.shop === currentShop;
     return dateMatch && catMatch && shopMatch;
   });
@@ -299,34 +314,81 @@ function render() {
     bArea.innerHTML = `<div class="card"><b>Budget:</b> ${sum.toFixed(2)}€ / ${budget}€<div class="progress-bg"><div class="progress-fill" style="width:${perc}%; background:${perc > 90 ? 'var(--danger)' : 'var(--success)'}"></div></div></div>`;
   } else { bArea.innerHTML = ""; }
 
-  document.getElementById('main-list').innerHTML = filtered.slice().reverse().map(r => `
-    <div class="receipt-item">
-      <div style="display:flex; justify-content:space-between; align-items:center;" onclick="this.nextElementSibling.classList.toggle('open')">
-        <span><b>${r.shop}</b><br><small>${r.date}</small></span>
-        <b style="color:var(--primary)">${(r.total || 0).toFixed(2)}€</b>
+  updateChart(filtered);
+
+  const listEl = document.getElementById('main-list');
+  if(filtered.length === 0) {
+    const msg = db.length > 0 ? "Filter aktiv: Keine Bons im Zeitraum." : "Keine Bons vorhanden. Bitte scannen.";
+    listEl.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">${msg}</div>`;
+  } else {
+    listEl.innerHTML = filtered.slice().reverse().map(r => `
+      <div class="receipt-item">
+        <div style="display:flex; justify-content:space-between; align-items:center;" onclick="this.nextElementSibling.classList.toggle('open')">
+          <span><b>${r.shop}</b><br><small>${r.date}</small></span>
+          <b style="color:var(--primary)">${(r.total || 0).toFixed(2)}€</b>
+        </div>
+        <div class="details">
+          ${(r.items || []).map(i => `
+            <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:0.9rem;">
+              <span>${i.n} <span class="cat-badge">${i.c}</span></span>
+              <span style="font-weight:600;">${(i.p || 0).toFixed(2)}€</span>
+            </div>
+          `).join('')}
+          <button onclick="deleteItem(${r.id})" style="color:var(--danger); background:none; border:none; margin-top:15px; cursor:pointer; width:100%; text-align:right; font-size:0.8rem; font-weight:700;">LÖSCHEN</button>
+        </div>
       </div>
-      <div class="details">
-        ${(r.items || []).map(i => `
-          <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:0.9rem;">
-            <span>${i.n} <span class="cat-badge">${i.c}</span></span>
-            <span style="font-weight:600;">${(i.p || 0).toFixed(2)}€</span>
-          </div>
-        `).join('')}
-        <button onclick="deleteItem(${r.id})" style="color:var(--danger); background:none; border:none; margin-top:15px; cursor:pointer; width:100%; text-align:right; font-size:0.8rem; font-weight:700;">LÖSCHEN</button>
-      </div>
-    </div>
-  `).join('');
+    `).join('');
+  }
+}
+
+function updateChart(data) {
+  const chartCard = document.getElementById('chart-card');
+  if(!data || !data.length) { chartCard.style.display="none"; return; }
+  chartCard.style.display="block";
+  const cats = {};
+  data.forEach(r => { if(r.items) r.items.forEach(i => { cats[i.c] = (cats[i.c] || 0) + i.p; })});
+  const ctx = document.getElementById('categoryChart').getContext('2d');
+  if(myChart) myChart.destroy();
+  myChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(cats),
+      datasets: [{
+        data: Object.values(cats),
+        backgroundColor: ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#71717a'],
+        borderWidth: 0
+      }]
+    },
+    options: { plugins: { legend: { display: false } }, cutout: '70%' }
+  });
+}
+
+async function exportPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const db = JSON.parse(localStorage.getItem(DB_KEY) || "[]");
+  doc.setFontSize(20);
+  doc.text("Kassenbon Pro - Report", 14, 22);
+  const tableData = [];
+  db.forEach(r => { if(r.items) r.items.forEach(i => { tableData.push([r.date, r.shop, i.n, i.c, i.p.toFixed(2) + " €"]); }); });
+  doc.autoTable({ startY: 40, head: [['Datum', 'Laden', 'Produkt', 'Kategorie', 'Preis']], body: tableData });
+  doc.save(`Kassenbon_Report.pdf`);
 }
 
 async function runAiAnalyse() {
   const db = JSON.parse(localStorage.getItem(DB_KEY) || "[]");
   if(!db.length) return;
-  document.getElementById('ai-output').innerHTML = "<div class='card'>KI analysiert...</div>";
+  document.getElementById('ai-output').innerHTML = "<div class='card'>KI analysiert Preise...</div>";
+  const priceCheck = {};
+  db.forEach(r => { if(r.items) r.items.forEach(i => {
+    const name = i.n.toLowerCase();
+    if(!priceCheck[name] || i.p < priceCheck[name].p) priceCheck[name] = { p: i.p, s: r.shop };
+  }); });
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST", headers: {"Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json"},
     body: JSON.stringify({
       model: "llama-3.3-70b-versatile",
-      messages: [{role: "user", content: `Analysiere kurz: ${JSON.stringify(db.slice(-3))}. Gib 2 kurze Spartipps.`}]
+      messages: [{role: "user", content: `Analysiere Käufe: ${JSON.stringify(db.slice(-5))}. Bestpreise: ${JSON.stringify(priceCheck)}. Gib 2 Tipps.`}]
     })
   });
   const data = await res.json();
@@ -335,68 +397,99 @@ async function runAiAnalyse() {
 
 async function syncWithCloud() {
   const token = localStorage.getItem('google_token');
-  if(!token) return;
+  if(!token) { console.error("Sync abgebrochen: Kein Google Token gefunden."); return; }
+  
   const statusEl = document.getElementById('sync-status');
   const btn = document.getElementById('cloud-sync-btn');
   const originalBtnText = btn.textContent;
   
+  console.log("--- START SYNC ---");
+  
   try {
-    btn.textContent = "⏳ Synchronisiere...";
-    statusEl.textContent = "⏳ Sync läuft...";
+    btn.textContent = "⏳..."; 
+    statusEl.textContent = "⏳ Verbindung...";
     
-    // 1. Suche nach existierender Datei im appDataFolder
-    const searchRes = await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='receipts.json'", {
-      headers: { "Authorization": `Bearer ${token}` }
+    // 1. Suche nach Datei
+    const searchRes = await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='receipts.json'", { 
+      headers: { "Authorization": `Bearer ${token}` } 
     });
     const searchData = await searchRes.json();
-    const fileId = searchData.files.length > 0 ? searchData.files[0].id : null;
+    
+    if (!searchData || searchData.error) {
+      console.error("Fehler bei Dateisuche:", searchData.error);
+      throw new Error("API Suche Fehlgeschlagen");
+    }
 
-    const localData = localStorage.getItem(DB_KEY) || "[]";
+    const fileId = (searchData.files && searchData.files.length > 0) ? searchData.files[0].id : null;
+    console.log("Datei-ID gefunden:", fileId);
+
+    let localDataRaw = localStorage.getItem(DB_KEY) || "[]";
+    let localParsed = JSON.parse(localDataRaw);
+    if(!Array.isArray(localParsed)) localParsed = [];
+    console.log("Lokale Bons:", localParsed.length);
 
     if (fileId) {
-      // 2. Download und Merge (Zusammenführen lokaler und Cloud-Daten)
-      const downloadRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-        headers: { "Authorization": `Bearer ${token}` }
+      // 2. Download
+      console.log("Lade Cloud-Daten herunter...");
+      const downloadRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { 
+        headers: { "Authorization": `Bearer ${token}` } 
       });
-      const cloudData = await downloadRes.json();
-      const localParsed = JSON.parse(localData);
       
-      // Einfaches Merge-Konzept: Neue IDs hinzufügen
+      let cloudData = await downloadRes.json();
+      console.log("Cloud-Datei Inhalt (geladen):", cloudData);
+      
+      if(!Array.isArray(cloudData)) {
+        console.warn("Achtung: Cloud-Daten sind kein Array!", cloudData);
+        cloudData = [];
+      }
+      
+      // Merge
       const merged = [...cloudData];
-      localParsed.forEach(lItem => {
-        if(!merged.find(mItem => mItem.id === lItem.id)) merged.push(lItem);
+      let addedCount = 0;
+      localParsed.forEach(lItem => { 
+        if(!merged.find(mItem => mItem.id === lItem.id)) {
+          merged.push(lItem);
+          addedCount++;
+        }
       });
-
+      
+      console.log(`Merge fertig: ${addedCount} neue Bons lokal gefunden. Gesamt: ${merged.length}`);
       localStorage.setItem(DB_KEY, JSON.stringify(merged));
       
-      // 3. Update Cloud-Datei
-      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
-        method: "PATCH",
-        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify(merged)
+      // 3. Upload Patch
+      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, { 
+        method: "PATCH", 
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }, 
+        body: JSON.stringify(merged) 
       });
+      console.log("Cloud-Update erfolgreich abgeschlossen.");
+      
     } else {
-      // 4. Neue Datei erstellen falls keine existiert
+      console.log("Keine Datei in Cloud - erstelle neue Datei receipts.json...");
       const metadata = { name: 'receipts.json', parents: ['appDataFolder'] };
       const form = new FormData();
       form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-      form.append('file', new Blob([localData], { type: 'application/json' }));
-
-      await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${token}` },
-        body: form
+      form.append('file', new Blob([JSON.stringify(localParsed)], { type: 'application/json' }));
+      
+      const createRes = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", { 
+        method: "POST", 
+        headers: { "Authorization": `Bearer ${token}` }, 
+        body: form 
       });
+      const createData = await createRes.json();
+      console.log("Datei neu erstellt:", createData);
     }
-
-    statusEl.textContent = "✅ Sync Abgeschlossen";
+    
+    statusEl.textContent = "✅ Sync Fertig"; 
     render();
-  } catch (e) {
-    console.error(e);
-    statusEl.textContent = "❌ Sync Fehler";
-  } finally {
-    btn.textContent = originalBtnText;
-    setTimeout(() => { statusEl.textContent = "✅ Cloud Aktiv"; }, 3000);
+    
+  } catch (e) { 
+    console.error("KRITISCHER SYNC FEHLER:", e);
+    statusEl.textContent = "❌ Fehler"; 
+  } finally { 
+    btn.textContent = originalBtnText; 
+    setTimeout(() => { if(localStorage.getItem('google_token')) statusEl.textContent = "✅ Cloud Aktiv"; }, 3000); 
+    console.log("--- SYNC ENDE ---");
   }
 }
 
