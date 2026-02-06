@@ -127,6 +127,9 @@
             </div>
         </div>
       </div>
+      
+      <button id="cloud-sync-btn" class="btn" style="background:#4285F4; display:none; margin-bottom:15px;" onclick="syncWithCloud()">☁️ Daten mit der Cloud synchronisieren</button>
+      
       <button class="btn ai" onclick="runAiAnalyse()">✨ KI Spar-Analyse</button>
       <div id="ai-output"></div>
       <div id="main-list" style="margin-top:20px;"></div>
@@ -330,6 +333,73 @@ async function runAiAnalyse() {
   document.getElementById('ai-output').innerHTML = `<div class="card" style="background:rgba(168, 85, 247, 0.1); border:1px solid #a855f7;">${data.choices[0].message.content}</div>`;
 }
 
+async function syncWithCloud() {
+  const token = localStorage.getItem('google_token');
+  if(!token) return;
+  const statusEl = document.getElementById('sync-status');
+  const btn = document.getElementById('cloud-sync-btn');
+  const originalBtnText = btn.textContent;
+  
+  try {
+    btn.textContent = "⏳ Synchronisiere...";
+    statusEl.textContent = "⏳ Sync läuft...";
+    
+    // 1. Suche nach existierender Datei im appDataFolder
+    const searchRes = await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='receipts.json'", {
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+    const searchData = await searchRes.json();
+    const fileId = searchData.files.length > 0 ? searchData.files[0].id : null;
+
+    const localData = localStorage.getItem(DB_KEY) || "[]";
+
+    if (fileId) {
+      // 2. Download und Merge (Zusammenführen lokaler und Cloud-Daten)
+      const downloadRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const cloudData = await downloadRes.json();
+      const localParsed = JSON.parse(localData);
+      
+      // Einfaches Merge-Konzept: Neue IDs hinzufügen
+      const merged = [...cloudData];
+      localParsed.forEach(lItem => {
+        if(!merged.find(mItem => mItem.id === lItem.id)) merged.push(lItem);
+      });
+
+      localStorage.setItem(DB_KEY, JSON.stringify(merged));
+      
+      // 3. Update Cloud-Datei
+      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+        method: "PATCH",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(merged)
+      });
+    } else {
+      // 4. Neue Datei erstellen falls keine existiert
+      const metadata = { name: 'receipts.json', parents: ['appDataFolder'] };
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+      form.append('file', new Blob([localData], { type: 'application/json' }));
+
+      await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` },
+        body: form
+      });
+    }
+
+    statusEl.textContent = "✅ Sync Abgeschlossen";
+    render();
+  } catch (e) {
+    console.error(e);
+    statusEl.textContent = "❌ Sync Fehler";
+  } finally {
+    btn.textContent = originalBtnText;
+    setTimeout(() => { statusEl.textContent = "✅ Cloud Aktiv"; }, 3000);
+  }
+}
+
 function saveBudget(v) { localStorage.setItem('app_budget', v); render(); }
 function deleteItem(id) {
   let db = JSON.parse(localStorage.getItem(DB_KEY) || "[]");
@@ -347,6 +417,7 @@ window.onload = () => {
     document.getElementById('login-btn').style.display = 'none';
     document.getElementById('logout-btn').style.display = 'block';
     document.getElementById('sync-status').textContent = "✅ Cloud Aktiv";
+    document.getElementById('cloud-sync-btn').style.display = 'block';
   }
 };
 </script>
